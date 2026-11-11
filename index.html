@@ -844,22 +844,9 @@
 
     // --- Post-test content for the English version (follows POST__Test.docx) ---
     const POST_EN = {
- exper: {
- "id": "q57",
- "dn": "Q1",
- "type": "radio",
- "label": "Which of the following did you experience?",
- "opts": [
-  "Dice of Destiny (Dice game)",
-  "Straying (Visual Novel Game)",
-  "Other (Reading Task, etc...)"
- ],
- "hasOther": true,
- "otherIdx": 2
-},
  completed: {
  "id": "q60",
- "dn": "Q2",
+ "dn": "Q1",
  "type": "radio",
  "label": "Did you complete the reading activity today?",
  "opts": [
@@ -869,7 +856,7 @@
  ]
 },
  engage: {
- "title": "Q3.",
+ "title": "Q2.",
  "inst": "Please rate your experience during the reading activity on a scale from 1 (Strongly Disagree) to 7 (Strongly Agree).",
  "scale": {
   "min": 1,
@@ -1608,7 +1595,7 @@
           </>) : (LANG === "en" ? <>
             <div style={{ marginBottom: 32 }}>
               <div style={{ background: "linear-gradient(90deg,#1E3A6E,#2B5EA7)", color: "#fff", padding: "16px 24px", borderRadius: "10px 10px 0 0", fontFamily: "'Noto Serif JP',serif" }}><h2 style={{ margin: 0, fontSize: 17, fontWeight: 600 }}>PART I: EXPERIENCE &amp; MANIPULATION CHECK</h2></div>
-              <div style={{ background: P.card, border: `1px solid ${P.bdr}`, borderTop: "none", borderRadius: "0 0 10px 10px", padding: "8px 24px 16px" }}><div id="f-q57"><DQ q={POST_EN.exper} value={ans.q57} onChange={v => sa("q57", v)} ov={oth.q57} onOv={v => so("q57", v)} /></div><div id="f-q60"><DQ q={POST_EN.completed} value={ans.q60} onChange={v => sa("q60", v)} ov={oth.q60} onOv={v => so("q60", v)} /></div></div>
+              <div style={{ background: P.card, border: `1px solid ${P.bdr}`, borderTop: "none", borderRadius: "0 0 10px 10px", padding: "8px 24px 16px" }}><div id="f-q60"><DQ q={POST_EN.completed} value={ans.q60} onChange={v => sa("q60", v)} ov={oth.q60} onOv={v => so("q60", v)} /></div></div>
             </div>
             <div id="f-q61"><SS key="pe-engage" section={POST_EN.engage} storageKey="survey_order_post_engage_en" answers={ans} set={sa} /></div>
             <p style={{ fontFamily: "'Noto Serif JP',serif", fontSize: 15, color: P.acc, margin: "0 0 12px", fontWeight: 600, letterSpacing: 0.5 }}>PART II: POST-TEST SURVEY</p>
