@@ -1,0 +1,1638 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ゲーム体験についてのご質問</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&family=Noto+Serif+JP:wght@400;600;700&display=swap"
+    rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box
+    }
+
+    body {
+      background: #0F1F3D;
+      background-image: linear-gradient(135deg, #0A1628 0%, #1A2744 30%, #1E3A5F 60%, #162D50 100%);
+      background-attachment: fixed;
+      font-family: 'Noto Sans JP', sans-serif;
+      color: #E8ECF2;
+      -webkit-font-smoothing: antialiased;
+      min-height: 100vh
+    }
+  </style>
+</head>
+
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useCallback, useEffect } = React;
+
+    // ============================================================
+    // 日英切り替え / Language switching
+    //  - 質問データ・選択肢の「保存値」は日本語のまま。表示だけ T() で翻訳する。
+    //  - 回答送信時に lang ("ja" / "en") を answers に追加する。
+    //  - ?lang=en / ?lang=ja で言語指定、指定がなければ前回の選択、なければ日本語。
+    // ============================================================
+    const GAME_URL = "https://sunaonahito.github.io/reading-task-us/";
+    const GAME_URL_EN = "https://sunaonahito.github.io/reading-task-us/";
+    const GAME_NOTE_EN = "";
+
+    let LANG = "en"; // default: English (US study); ?lang=ja or the switch selects Japanese
+    try {
+      const qp = new URLSearchParams(window.location.search).get("lang");
+      if (qp === "en" || qp === "ja") { LANG = qp; localStorage.setItem("survey_lang", qp); }
+      else { const sv = localStorage.getItem("survey_lang"); if (sv === "en" || sv === "ja") LANG = sv; }
+    } catch (e) { }
+
+    const EN = {
+      "全くそう思わない": "Strongly disagree",
+      "非常にそう思う": "Strongly agree",
+      "まったく感じなかった": "Did not feel at all",
+      "非常に強く感じた": "Felt very strongly",
+      "全く当てはまらない": "Does not apply at all",
+      "非常によく当てはまる": "Applies very well",
+      "まったくできる自信がない": "Cannot do at all",
+      "確実にできる自信がある": "Certain I can do it",
+      "非常に否定的な変化": "Very negative change",
+      "変化なし": "No change",
+      "非常に肯定的な変化": "Very positive change",
+      "非常に当てはまる": "Applies very well",
+      "1：全く当てはまらない": "1: Does not apply at all",
+      "2：あまり当てはまらない": "2: Does not really apply",
+      "3：どちらかといえば当てはまらない": "3: Somewhat does not apply",
+      "4：どちらともいえない": "4: Neither",
+      "5：どちらかといえば当てはまる": "5: Somewhat applies",
+      "6：やや当てはまる": "6: Fairly well applies",
+      "7：非常によく当てはまる": "7: Applies very well",
+      "匿名コードを作成してください。": "Please create your study ID.",
+      "あなたの年齢をお書きください。": "Please enter your age.",
+      "歳": "years old",
+      "あなたの性別を教えてください。": "Please tell us your gender.",
+      "男性": "Male",
+      "女性": "Female",
+      "どちらでもない": "Non-binary / Neither",
+      "回答しない": "Prefer not to say",
+      "あなたの民族的背景を教えてください。（当てはまるものすべて選択）": "Please tell us your racial or ethnic background. (Select all that apply)",
+      "日本人": "Japanese",
+      "東アジア系（中国、韓国など）": "East Asian (Chinese, Korean, etc.)",
+      "東南アジア系（ベトナム、タイ、フィリピンなど）": "Southeast Asian (Vietnamese, Thai, Filipino, etc.)",
+      "南アジア系（インド、ネパールなど）": "South Asian (Indian, Nepalese, etc.)",
+      "その他": "Other",
+      "あなたの現在の職業や立場を教えてください。（当てはまるものすべて選択）": "Please select your current occupation or status. (Select all that apply)",
+      "会社員・公務員・団体職員（正社員・正規職員）": "Regular employee (full-time / civil servant / organization staff)",
+      "会社員・団体職員（派遣・契約・嘱託社員）": "Contract / dispatch / temporary employee",
+      "自営業・フリーランス・経営者": "Self-employed / freelance / business owner",
+      "パート・アルバイト": "Part-time / casual worker",
+      "専業主婦・主夫": "Homemaker",
+      "学生": "Student",
+      "無職・休職中・リタイア": "Unemployed / on leave / retired",
+      "あなたの現在の婚姻・交際状況を教えてください。": "Please tell us your current marital / relationship status.",
+      "既婚": "Married",
+      "未婚（現在、パートナーがいる）": "Unmarried (currently has a partner)",
+      "未婚（現在、パートナーがいない）": "Unmarried (currently does not have a partner)",
+      "子どもの有無を教えてください。": "Do you have children?",
+      "子どもがいる": "Yes, I have children",
+      "子どもはいない": "No, I do not have children",
+      "あなたの現在の健康状態を教えてください。（最も当てはまるものを選択）": "Please tell us your current health status. (Select the one that best applies)",
+      "よい": "Good",
+      "まあよい": "Fairly good",
+      "ふつう": "Average",
+      "あまりよくない": "Not very good",
+      "よくない": "Poor",
+      "あなたの喪失経験を教えてください。過去3年以内に、あなたにとって非常に重大な喪失体験（大切な人との死別や離別、重要な役割の喪失、健康の喪失など）がありましたか。": "Please tell us about your experience of loss. Within the past 3 years, have you experienced a very significant loss (bereavement or separation from someone important, loss of an important role, loss of health, etc.)?",
+      "はい": "Yes",
+      "いいえ": "No",
+      "わからない": "Unsure",
+      "以下の各文について、あなたの考えに最も近い数字をお選びください。正解や不正解はありません。感じたままに正直にお答えください。": "For each of the following statements, please select the number that best represents your view. There are no right or wrong answers. Please answer honestly based on how you feel.",
+      "私は自分の人生に満足している。": "I am satisfied with my life.",
+      "私の人生は、とても素晴らしい状態だ。": "The conditions of my life are excellent.",
+      "大体において、私の人生は理想に近い。": "In most ways my life is close to my ideal.",
+      "私はこれまで、自分の人生に求める大切なものを得てきた。": "So far I have gotten the important things I want in life.",
+      "もう一度人生をやり直せるとしても、ほとんど何も変えないだろう。": "If I could live my life over, I would change almost nothing.",
+      "物事がうまくいかないときや、問題を抱えているとき、以下のことをどのくらい自信を持ってできますか。0（まったくできない）から10（確実にできる）の中から当てはまる数字を選んでください。": "When things go wrong or when you are facing problems, how confident are you that you can do the following? Please select a number from 0 (cannot do at all) to 10 (certainly can do).",
+      "つらい問題を小さな部分に分けて考える。": "Break an upsetting problem down into smaller parts.",
+      "変更できることと変更できないことを整理する。": "Sort out what can be changed from what cannot be changed.",
+      "変更可能なことと変更できないことを整理する。": "Sort out what can be changed from what cannot be changed.",
+      "不快な考えを頭から追い払う。": "Get an unpleasant thought out of your head.",
+      "不快な考えから気をそらす。": "Take your mind off unpleasant thoughts.",
+      "不快な考えで動揺しないようにする。": "Keep yourself from feeling too upset by unpleasant thoughts.",
+      "問題に直面したとき、行動計画を立てて実行する。": "Make a plan of action and follow it when confronted with a problem.",
+      "悲しい気持ちにならないようにする。": "Keep yourself from feeling sad.",
+      "ストレスを感じたとき、選択肢を残しておく。": "Leave options open when things are stressful.",
+      "問題の一つひとつに分けて考える。": "Think about one part of the problem at a time.",
+      "最も困難な問題の解決策を見つける。": "Find solutions to your most difficult problems.",
+      "必要なことを友人に手伝ってもらう。": "Get friends to help you with the things you need.",
+      "家族や友人から情緒的な支援を得る。": "Get emotional support from friends and family.",
+      "友人をつくる。": "Make new friends.",
+      "匿名コードを確認してください。": "Please confirm your study ID.",
+      "以下の文章は、あなたの人生に対する考えを表しています。それぞれについて、あなた自身にどの程度当てはまるかをお答えください。": "The following statements express your thoughts about your life. Please answer to what extent each statement applies to you.",
+      "私の人生は価値あるものである。": "My life is full of value.",
+      "私の個人的な存在は重要である。": "My personal existence is significant.",
+      "私は毎日、人生は生きるに値するという感覚を味わっている。": "Every day I experience the sense that life is worth living.",
+      "自分の人生で起きた出来事を、必然のものとして受け入れられるようになってきた。": "I have come to accept the events that occurred in my life as inevitable.",
+      "自分の人生のさまざまな出来事の中に、一本の意味の糸が通っているのを感じる。": "I feel a single thread of meaning running through the various events of my life.",
+      "自分が経験した苦しみにも、意味があったと思う。": "I think there was meaning even in the suffering I experienced.",
+      "このゲームをプレイして、以下の感情をどの程度感じましたか。最もよく当てはまる数字をお選びください。": "How much did you feel the following emotions while reading this story? Please select the number that best applies.",
+      "悲しい気持ちになった。": "I felt sad.",
+      "胸が締め付けられるような気持ちになった。": "I felt heartache.",
+      "不安や恐れを感じた。": "I felt anxiety or fear.",
+      "大切なものへの感謝を感じた。": "I felt gratitude for important things.",
+      "ゲームの登場人物の立場になって、その人が感じていることを理解できた。": "I could put myself in Jordan's position and understand what Jordan was feeling.",
+      "ゲームの登場人物を気の毒に思い、うまくいってほしいと願った。": "I felt sorry for Jordan and hoped that things would turn out well for Jordan.",
+      "ゲームの物語やメッセージが心に響いた。": "The story and its messages touched me deeply.",
+      "登場人物が経験する喪失が、自分自身の経験と重なった。": "Jordan's experiences of loss resonated with experiences in my own life.",
+      "懐かしい気持ちになった。": "I felt sentimental.",
+      "ゲームの世界に引き込まれた。": "I was drawn into the world of the story.",
+      "このゲームをプレイした後、以下のことはどの程度あてはまりますか。最もよく当てはまる数字をお選びください。": "To what extent do the following statements apply to you after reading this story? Please select the number that best applies.",
+      "ゲームの体験から、何か意味を見出せるかどうかについて考えた。": "I thought about whether I could find any meaning from the reading experience.",
+      "ゲームの体験を通じて、自分が何か学べたかどうかについて考えた。": "I thought about whether I learned anything through the reading experience.",
+      "ゲームの体験が、自分の世界観や信念を変えたかどうかについて考えた。": "I thought about whether the reading experience changed my worldview or beliefs.",
+      "ゲームの体験が、自分のこれからにとってどんな意味を持つかについて考えた。": "I thought about what meaning the reading experience holds for my future.",
+      "ゲームの体験が自分にどのような影響を与えたかについて、意図的に考えた。": "I intentionally thought about how the reading experience affected me.",
+      "今回ご体験いただいたゲームタイトルを選択してください。": "Which of the following did you experience?",
+      "Dice of Destiny（ダイスゲーム）": "Dice of Destiny (dice game)",
+      "Straying（ノベルゲーム）": "Straying (novel game)",
+      "今回ご体験いただいたゲームや、それに伴う一連の活動に対するご感想・ご意見があればお聞かせください。": "Please share your thoughts, impressions, and opinions regarding the game you experienced and the series of related activities.",
+      "自由にご記入ください（任意）": "Please write freely (optional)",
+      "✓ 事前アンケートのコードが自動入力されました。内容をご確認ください。": "✓ The study ID from your pre-activity survey has been filled in automatically. Please check that it is correct.",
+      "有効な匿名コードを入力してください": "Please enter a valid study ID.",
+      "4〜20文字の文字・数字（記号は - と _ のみ）で入力してください。同じ文字だけの並びは使えません。": "Please use 4–20 letters or numbers (the only symbols allowed are - and _). A string of the same character repeated is not allowed.",
+      "このコードはすでに使われています。別のコードにしてください。（すでに事前アンケートに回答済みの場合は、事後アンケートへお進みください。）": "This study ID is already in use. Please choose a different one. (If you have already completed the pre-activity survey, please go on to the post-activity survey.)",
+      "確認中...": "Checking...",
+      "✓ 事前アンケートのコードと一致しました。": "✓ This matches the study ID from your pre-activity survey.",
+      "事前アンケートでこのコードが見つかりませんでした。入力を確認してください。（このまま進むこともできます。）": "We could not find this study ID in the pre-activity survey. Please check your entry. (You can also continue as it is.)",
+      "✓ このコードを使用できます。": "✓ You can use this study ID.",
+      "事前アンケートで使ったコードを入力してください。通常は自動で入力されます。": "Please enter the study ID you used in the pre-activity survey. It is normally filled in automatically.",
+      "このコードは、ゲーム体験後のアンケートの回答と結びつけるために使います。ご自身で決めた、4〜20文字の文字・数字（記号は - と _ のみ）をご入力ください。": "Your study ID is used throughout the study to link your responses without directly identifying you. Please create one of your own choosing: 4–20 letters or numbers (the only symbols allowed are - and _).",
+      "例：好きな言葉＋数字4桁（sakura2468）": "Example: a favorite word + 4 digits (sakura2468)",
+      "本名など、個人が特定できる情報は使わないでください。": "Please do not use your real name or any other information that could identify you.",
+      "例：sakura2468": "e.g. sakura2468",
+      "使用されるコード：": "Study ID to be used: ",
+      "あなたの匿名コード": "Your study ID",
+      "このコードはゲームの体験や事後アンケートでも使用します。": "This study ID will also be used for the reading activity and the post-activity survey.",
+      "記録しておいてください。": "Please make a note of it.",
+      "具体的にお書きください": "Please specify",
+      "回答の進捗": "Progress",
+      "ゲーム体験前のご質問": "Pre-activity Survey",
+      "ゲーム体験後のご質問": "Post-activity Survey",
+      "回答内容は保存されません。トップに戻りますか？": "Your responses will not be saved. Go back to top?",
+      "トップに戻る": "Back to top",
+      "未回答の必須項目が": "Required items not yet answered:",
+      "件あります。ご確認ください。": "Please check them.",
+      "この項目は必須です": "This item is required.",
+      "すべての回答を入力したら、「完了」ボタンを押してください。": "When you have finished answering, please press the \"Submit\" button.",
+      "完了": "Submit",
+      "送信中...": "Sending...",
+      "ゲーム体験についてのご質問": "Awareness of Inner Resilience and Motivation for Growth Through Simulated Loss Experiences",
+      "ゲーム体験についてのご質問に": "Please take part in our questions",
+      "ご協力ください。": "on the reading experience.",
+      "この質問は，ゲームを用いて人生を省察する体験の影響について確認することを目的としています。": "Please complete the three steps below in order: the pre-activity survey, the reading activity, and the post-activity survey.",
+      "ここで得られたデータは統計的に処理され，個人情報が公開されることはありません。": "The research dataset will not include your name or other direct identifiers. Your responses will be analyzed as aggregated research data.",
+      "また，回答は任意であり，回答の有無があなたの評価に影響することはありません。": "Participation is voluntary. You may stop participating at any time without penalty.",
+      "回答結果が評価に影響することもありません。": "Choosing not to participate or withdrawing before completing the activity will not affect your academic performance or your relationship with the course instructor, who is also the Principal Investigator.",
+      "できるだけ多くの方のご協力を必要としております。": "We need the cooperation of as many people as possible.",
+      "ご協力の程よろしくお願い申し上げます。": "Thank you very much for your cooperation.",
+      "人生満足度、コーピングに関する質問": "Questions about life satisfaction and coping",
+      "推定時間：3〜5分": "Estimated time: 3–5 min",
+      "ゲーム体験": "Reading Activity",
+      "ゲームを体験してください": "Please read the story",
+      "推定時間：20〜30分　|　全3ステージ": "Estimated time: about 10–30 min  |  5 parts",
+      "この回答をもちまして，本研究の協力に同意いただいたものとさせていただきます。": "You have agreed to participate in this study. You may stop at any time without penalty.",
+      "すべての回答は匿名です。": "",
+      "調査責任者：東京大学情報学環　藤本　徹": "Principal Investigator: Toru Fujimoto, Interfaculty Initiative in Information Studies, The University of Tokyo",
+      "調査実施者：東京大学情報学環　坂井裕紀": "Survey Administrator: Hironori Sakai, Interfaculty Initiative in Information Studies, The University of Tokyo",
+      "調査実施者：南オレゴン大学　豊川典子": "Survey Administrator: Noriko Toyokawa, Southern Oregon University",
+      "連絡先（豊川典子：とよかわ のりこ）：": "Contact (Noriko Toyokawa): ",
+      "ご不明な点がありましたら，下記までご連絡ください。": "If you have any questions or concerns, please contact the address below.",
+      "連絡先（坂井 裕紀：さかい ひろのり）：": "Contact (Hironori Sakai): ",
+      "ご体験ありがとうございました": "Thank you for completing the activity",
+      "ご回答ありがとうございました": "Thank you for your responses",
+      "ゲーム体験前のご質問への回答が完了しました。データは正常に記録されました。": "The pre-activity survey is complete. Your data has been recorded successfully.",
+      "「あなたは何を選ぶ？-ゲームで体験する喪失と生の価値」の体験お疲れ様でした": "Thank you for taking part in the study \"Awareness of Inner Resilience and Motivation for Growth Through Simulated Loss Experiences.\"",
+      "この体験が、あなたの健康と幸福の支えとなり": "We hope that this experience supports your health and happiness,",
+      "より充実した人生の一助となることを願っています": "and contributes to a more fulfilling life.",
+      "今回、ゲームを体験をされた方に、もう一方のゲームも自由にお楽しみいただける機会をご用意しました。以下のURLからそれぞれのゲームを体験することができます。": "For those who have completed the reading experience, we have provided an opportunity to freely enjoy the other game as well. You can experience each game from the URLs below.",
+      "■ Straying（ノベルゲーム）": "■ Straying (novel game)",
+      "■ Dice of Destiny（ダイスゲーム）": "■ Dice of Destiny (dice game)",
+      "その他：以下のバージョンも体験できます": "Other: You can also experience the following versions:",
+      "■ Dice of Destiny（8bit ver.）": "■ Dice of Destiny (8bit ver.)",
+      "■ Dice of Destiny（English ver.）": "■ Dice of Destiny (English ver.)",
+      "ゲームデータは収集していません。お時間の許す際にプレイいただけると幸いです。": "We do not collect game data for these versions. We hope you enjoy playing them when your time permits.",
+      "送信エラー:": "Transmission error:"
+};
+    const T = (s) => (LANG === "en" && typeof s === "string" && Object.prototype.hasOwnProperty.call(EN, s)) ? EN[s] : s;
+    // English-only extra choices (saved as English text). Inserted just before "その他".
+    const Q4_EN_EXTRA = ["White", "Black or African American", "Hispanic or Latino", "Middle Eastern or North African", "American Indian or Alaska Native", "Native Hawaiian or Other Pacific Islander"];
+    function getOpts(q) {
+      if (LANG === "en" && q.enExtra) { const i = q.otherIdx; return [...q.opts.slice(0, i), ...q.enExtra, ...q.opts.slice(i)]; }
+      return q.opts;
+    }
+    try { document.documentElement.lang = LANG; document.title = T("ゲーム体験についてのご質問"); } catch (e) { }
+
+    // ============================================================
+    // Google スプレッドシート連携
+    // ============================================================
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbynMf0vLbQs8YneLFuK2o51CUAkfGtTjcbP3nhbz1zRATIjbWVnVIMgfH-Fo7xcHtzB/exec";
+
+    // --- Scales ---
+    const L7 = { min: 1, max: 7, labels: ["全くそう思わない", "", "", "", "", "", "非常にそう思う"] };
+    const L7E = { min: 1, max: 7, labels: ["まったく感じなかった", "", "", "", "", "", "非常に強く感じた"] };
+    const L7A = { min: 1, max: 7, labels: ["全く当てはまらない", "", "", "", "", "", "非常によく当てはまる"] };
+    const C11 = { min: 0, max: 10, labels: ["まったくできる自信がない", "", "", "", "", "", "", "", "", "", "確実にできる自信がある"] };
+    const S7 = { min: -3, max: 3, labels: ["非常に否定的な変化", "", "", "変化なし", "", "", "非常に肯定的な変化"] };
+    const L6 = { min: 1, max: 6, labels: ["全く当てはまらない", "", "", "", "", "非常に当てはまる"] };
+
+    // --- Colors ---
+    const P = { bg: "linear-gradient(135deg,#0A1628 0%,#1A2744 30%,#1E3A5F 60%,#162D50 100%)", bgSolid: "#0F1F3D", card: "rgba(255,255,255,0.07)", cardSolid: "#162844", pri: "#5B8AF0", priL: "#7BA4F7", acc: "#E8A44A", accL: "rgba(232,164,74,0.2)", txt: "#E8ECF2", mut: "#8899B3", bdr: "rgba(255,255,255,0.12)", sel: "#5B8AF0", selBg: "rgba(91,138,240,0.15)", err: "#F07070", secBg: "rgba(255,255,255,0.04)" };
+
+    // --- Questions ---
+    const PRE = {
+      demo: [
+        { id: "q1", type: "code", label: "匿名コードを作成してください。" },
+        { id: "q2", type: "number", label: "あなたの年齢をお書きください。", ph: "歳", suf: "歳" },
+        { id: "q3", type: "radio", label: "あなたの性別を教えてください。", opts: ["男性", "女性", "どちらでもない", "回答しない"] },
+        { id: "q4", type: "checkbox", label: "あなたの民族的背景を教えてください。（当てはまるものすべて選択）", opts: ["日本人", "東アジア系（中国、韓国など）", "東南アジア系（ベトナム、タイ、フィリピンなど）", "南アジア系（インド、ネパールなど）", "その他", "回答しない"], hasOther: true, otherIdx: 4, enExtra: Q4_EN_EXTRA },
+        { id: "q5", type: "checkbox", label: "あなたの現在の職業や立場を教えてください。（当てはまるものすべて選択）", opts: ["会社員・公務員・団体職員（正社員・正規職員）", "会社員・団体職員（派遣・契約・嘱託社員）", "自営業・フリーランス・経営者", "パート・アルバイト", "専業主婦・主夫", "学生", "無職・休職中・リタイア", "その他", "回答しない"], hasOther: true, otherIdx: 7 },
+        { id: "q6", type: "radio", label: "あなたの現在の婚姻・交際状況を教えてください。", opts: ["既婚", "未婚（現在、パートナーがいる）", "未婚（現在、パートナーがいない）", "その他", "回答しない"] },
+        { id: "q7", type: "radio", label: "子どもの有無を教えてください。", opts: ["子どもがいる", "子どもはいない", "回答しない"] },
+        { id: "q8", type: "radio", label: "あなたの現在の健康状態を教えてください。（最も当てはまるものを選択）", opts: ["よい", "まあよい", "ふつう", "あまりよくない", "よくない", "回答しない"] },
+        { id: "q9", type: "radio", label: "あなたの喪失経験を教えてください。過去3年以内に、あなたにとって非常に重大な喪失体験（大切な人との死別や離別、重要な役割の喪失、健康の喪失など）がありましたか。", opts: ["はい", "いいえ", "わからない", "回答しない"] },
+      ],
+      swls: {
+        title: "§1.", inst: "以下の各文について、あなたの考えに最も近い数字をお選びください。正解や不正解はありません。感じたままに正直にお答えください。",
+        scaleNote: ["1：全く当てはまらない", "2：あまり当てはまらない", "3：どちらかといえば当てはまらない", "4：どちらともいえない", "5：どちらかといえば当てはまる", "6：やや当てはまる", "7：非常によく当てはまる"],
+        scale: L7A, items: [
+          { id: "q10", t: "私は自分の人生に満足している。" }, { id: "q11", t: "私の人生は、とても素晴らしい状態だ。" }, { id: "q12", t: "大体において、私の人生は理想に近い。" }, { id: "q13", t: "私はこれまで、自分の人生に求める大切なものを得てきた。" }, { id: "q14", t: "もう一度人生をやり直せるとしても、ほとんど何も変えないだろう。" },
+        ]
+      },
+      cses: {
+        title: "§2.", inst: "物事がうまくいかないときや、問題を抱えているとき、以下のことをどのくらい自信を持ってできますか。0（まったくできない）から10（確実にできる）の中から当てはまる数字を選んでください。", scale: C11, items: [
+          { id: "q18", t: "つらい問題を小さな部分に分けて考える。" }, { id: "q19", t: "変更できることと変更できないことを整理する。" }, { id: "q20", t: "不快な考えを頭から追い払う。" }, { id: "q21", t: "不快な考えから気をそらす。" }, { id: "q22", t: "不快な考えで動揺しないようにする。" }, { id: "q23", t: "問題に直面したとき、行動計画を立てて実行する。" }, { id: "q24", t: "悲しい気持ちにならないようにする。" }, { id: "q25", t: "ストレスを感じたとき、選択肢を残しておく。" }, { id: "q26", t: "問題の一つひとつに分けて考える。" }, { id: "q27", t: "最も困難な問題の解決策を見つける。" }, { id: "q28", t: "必要なことを友人に手伝ってもらう。" }, { id: "q29", t: "家族や友人から情緒的な支援を得る。" }, { id: "q30", t: "友人をつくる。" },
+        ]
+      },
+    };
+
+    // --- Pretest content for the English version (follows Pretest_Survey.docx) ---
+    const PRE_EN = {
+ "demo": [
+  {
+   "id": "q1",
+   "type": "code",
+   "label": "Please create your study ID."
+  },
+  {
+   "id": "q2",
+   "dn": "Q2",
+   "type": "number",
+   "label": "What is your current age?",
+   "ph": "",
+   "suf": "years old"
+  },
+  {
+   "id": "q3",
+   "dn": "Q3",
+   "type": "radio",
+   "label": "What is your gender identity?",
+   "opts": [
+    "Male",
+    "Female",
+    "Non-binary / Genderqueer",
+    "Self-describe",
+    "Prefer not to say"
+   ],
+   "hasOther": true,
+   "otherIdx": 3
+  },
+  {
+   "id": "q4",
+   "dn": "Q4",
+   "type": "checkbox",
+   "label": "What is your race? (Select all that apply)",
+   "opts": [
+    "American Indian or Alaska Native",
+    "Asian",
+    "Black or African American",
+    "Middle Eastern or North African",
+    "Native Hawaiian or Other Pacific Islander",
+    "White",
+    "Some other race",
+    "Prefer not to answer"
+   ],
+   "hasOther": true,
+   "otherIdx": 6
+  },
+  {
+   "id": "q4b",
+   "dn": "Q5",
+   "type": "radio",
+   "label": "What is your ethnicity?",
+   "opts": [
+    "Hispanic or Latino",
+    "Not Hispanic or Latino",
+    "Unknown / Not sure",
+    "Prefer not to answer"
+   ]
+  },
+  {
+   "id": "q5",
+   "dn": "Q6",
+   "type": "checkbox",
+   "label": "What is your current employment status? (Select all that apply)",
+   "opts": [
+    "Full-time student",
+    "Part-time student",
+    "Employed full-time",
+    "Employed part-time",
+    "Self-employed / Business owner",
+    "Unemployed",
+    "Homemaker",
+    "On leave / Retired",
+    "Other",
+    "Prefer not to say"
+   ],
+   "hasOther": true,
+   "otherIdx": 8
+  },
+  {
+   "id": "q6",
+   "dn": "Q7",
+   "type": "radio",
+   "label": "What is your current marital / relationship status?",
+   "opts": [
+    "Single / Not currently in a relationship",
+    "In a relationship (not cohabiting)",
+    "Living with a partner / Cohabiting",
+    "Married",
+    "Divorced / Separated",
+    "Widowed",
+    "Prefer not to say"
+   ]
+  },
+  {
+   "id": "q7",
+   "dn": "Q8",
+   "type": "radio",
+   "label": "Do you have children?",
+   "opts": [
+    "Yes",
+    "No",
+    "Prefer not to say"
+   ]
+  },
+  {
+   "id": "q8",
+   "dn": "Q9",
+   "type": "radio",
+   "label": "How would you rate your overall subjective health status?",
+   "opts": [
+    "Excellent",
+    "Good",
+    "Fair",
+    "Poor",
+    "Prefer not to say"
+   ]
+  },
+  {
+   "id": "q9",
+   "dn": "Q10",
+   "type": "radio",
+   "label": "Within the past 3 years, have you experienced a major life loss (e.g., bereavement, separation from an important person, loss of health, loss of an important role or job)?",
+   "opts": [
+    "Yes",
+    "No",
+    "Unsure",
+    "Prefer not to say"
+   ]
+  }
+ ],
+ "swls": {
+  "title": "Section 1",
+  "inst": "Below are five statements that you may agree or disagree with. Using the 1–7 scale below, indicate your agreement with each item. Please be open and honest in your responding.",
+  "scaleNote": [
+   "1 = Strongly Disagree",
+   "2 = Disagree",
+   "3 = Slightly Disagree",
+   "4 = Neither Agree nor Disagree",
+   "5 = Slightly Agree",
+   "6 = Agree",
+   "7 = Strongly Agree"
+  ],
+  "scale": {
+   "min": 1,
+   "max": 7,
+   "labels": [
+    "Strongly Disagree",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "Strongly Agree"
+   ]
+  },
+  "items": [
+   {
+    "id": "q10",
+    "t": "I am satisfied with my life."
+   },
+   {
+    "id": "q11",
+    "t": "The conditions of my life are excellent."
+   },
+   {
+    "id": "q12",
+    "t": "In most ways my life is close to my ideal."
+   },
+   {
+    "id": "q13",
+    "t": "So far I have gotten the important things I want in life."
+   },
+   {
+    "id": "q14",
+    "t": "If I could live my life over, I would change almost nothing."
+   }
+  ]
+ },
+ "cses": {
+  "title": "Section 2",
+  "inst": "When things go wrong or when you are facing difficult problems, how confident are you that you can perform the following actions? Please rate your confidence on a scale from 0 (\"Cannot do at all\") to 10 (\"Certain can do\").",
+  "scale": {
+   "min": 0,
+   "max": 10,
+   "labels": [
+    "Cannot do at all",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "Certain can do"
+   ]
+  },
+  "items": [
+   {
+    "id": "q26",
+    "t": "Think about one part of the problem at a time."
+   },
+   {
+    "id": "q30",
+    "t": "Make new friends."
+   },
+   {
+    "id": "q25",
+    "t": "Leave options open when things are stressful."
+   },
+   {
+    "id": "q22",
+    "t": "Keep yourself from feeling too upset by unpleasant thoughts."
+   },
+   {
+    "id": "q27",
+    "t": "Find solutions to your most difficult problems."
+   },
+   {
+    "id": "q28",
+    "t": "Get friends to help you with the things you need."
+   },
+   {
+    "id": "q21",
+    "t": "Take your mind off unpleasant thoughts."
+   },
+   {
+    "id": "q18",
+    "t": "Break an upsetting problem down into smaller parts."
+   },
+   {
+    "id": "q19",
+    "t": "Sort out what can be changed from what cannot be changed."
+   },
+   {
+    "id": "q20",
+    "t": "Get an unpleasant thought out of your head."
+   },
+   {
+    "id": "q24",
+    "t": "Keep yourself from feeling sad."
+   },
+   {
+    "id": "q23",
+    "t": "Make a plan of action and follow it when confronted with a problem."
+   },
+   {
+    "id": "q29",
+    "t": "Get emotional support from friends and family."
+   }
+  ]
+ },
+ "cop": {
+  "title": "Section 3",
+  "inst": "Think of a recent stressful or challenging situation in your life. Thinking back to that situation, how accurately does each statement describe how you processed or thought about it?",
+  "scaleNote": [
+   "1 = Does not apply at all",
+   "2 = Applies somewhat",
+   "3 = Applies moderately",
+   "4 = Applies very much"
+  ],
+  "scale": {
+   "min": 1,
+   "max": 4,
+   "labels": [
+    "Does not apply at all",
+    "",
+    "",
+    "Applies very much"
+   ]
+  },
+  "items": [
+   {
+    "id": "q56",
+    "t": "I tried to see the situation in a different light to make it seem more positive."
+   },
+   {
+    "id": "q57",
+    "t": "I looked for the good in what was happening in the situation."
+   },
+   {
+    "id": "q58",
+    "t": "I changed or grew as a person in a good way through the experience."
+   },
+   {
+    "id": "q59",
+    "t": "I came out of the experience with a clearer sense of what is important in life."
+   },
+   {
+    "id": "q60",
+    "t": "I rediscovered what is important in life through the choices I made."
+   },
+   {
+    "id": "q61",
+    "t": "I tried to focus on how I could learn from the experience."
+   }
+  ]
+ },
+ "meaning": {
+  "title": "Section 4",
+  "inst": "The following statements express your thoughts about your life as a whole. Please indicate the extent to which each statement applies to you.",
+  "scaleNote": [
+   "1 = Strongly Disagree",
+   "2 = Disagree",
+   "3 = Slightly Disagree",
+   "4 = Neither Agree nor Disagree",
+   "5 = Slightly Agree",
+   "6 = Agree",
+   "7 = Strongly Agree"
+  ],
+  "scale": {
+   "min": 1,
+   "max": 7,
+   "labels": [
+    "Strongly Disagree",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "Strongly Agree"
+   ]
+  },
+  "items": [
+   {
+    "id": "q31",
+    "t": "My personal existence is significant."
+   },
+   {
+    "id": "q32",
+    "t": "My life is full of value."
+   },
+   {
+    "id": "q33",
+    "t": "I think there was meaning even in the suffering I experienced."
+   },
+   {
+    "id": "q34",
+    "t": "I feel a single thread of meaning running through the various events of my life."
+   },
+   {
+    "id": "q35",
+    "t": "Every day I experience the sense that life is worth living."
+   },
+   {
+    "id": "q36",
+    "t": "I have come to accept the events that occurred in my life as inevitable."
+   }
+  ]
+ },
+ "play": {
+  "title": "Section 5",
+  "inst": "People differ in how they tend to approach everyday situations. The following statements ask about your general tendencies and preferences. Please indicate how well each statement describes you based on your first impression.",
+  "scaleNote": [
+   "1 = Strongly Disagree",
+   "2 = Disagree",
+   "3 = Slightly Disagree",
+   "4 = Slightly Agree",
+   "5 = Agree",
+   "6 = Strongly Agree"
+  ],
+  "scale": {
+   "min": 1,
+   "max": 6,
+   "labels": [
+    "Strongly Disagree",
+    "",
+    "",
+    "",
+    "",
+    "Strongly Agree"
+   ]
+  },
+  "items": [
+   {
+    "id": "q37",
+    "t": "I can enjoy the fun things that others start."
+   },
+   {
+    "id": "q38",
+    "t": "I understand social rules, but in most cases, I am not bound too tightly by them."
+   },
+   {
+    "id": "q39",
+    "t": "I don't think I lose anything by doing something silly."
+   },
+   {
+    "id": "q40",
+    "t": "No matter what I am doing, I try to have fun."
+   },
+   {
+    "id": "q41",
+    "t": "I often act depending on my mood at the time."
+   },
+   {
+    "id": "q42",
+    "t": "I gladly accept the fun things others start."
+   },
+   {
+    "id": "q43",
+    "t": "I often do unplanned things."
+   },
+   {
+    "id": "q44",
+    "t": "If I want to do something, I rarely stop because of what others might think."
+   },
+   {
+    "id": "q45",
+    "t": "I often follow whatever thought pops into my head."
+   },
+   {
+    "id": "q46",
+    "t": "Whatever the activity, I can make it fun in my own way."
+   },
+   {
+    "id": "q47",
+    "t": "If someone starts something fun, I am glad to join in."
+   },
+   {
+    "id": "q48",
+    "t": "I sometimes act without worrying about the consequences."
+   },
+   {
+    "id": "q49",
+    "t": "I can find enjoyment in most situations."
+   },
+   {
+    "id": "q50",
+    "t": "I don't always follow the rules."
+   },
+   {
+    "id": "q51",
+    "t": "I am usually the one who starts something fun on the spot."
+   },
+   {
+    "id": "q52",
+    "t": "I think it is important to have a fun time."
+   },
+   {
+    "id": "q53",
+    "t": "Having fun is very important in my life."
+   },
+   {
+    "id": "q54",
+    "t": "I often act on the spur of the moment."
+   },
+   {
+    "id": "q55",
+    "t": "I often act impulsively."
+   }
+  ]
+ }
+};
+    const PRE_X = () => (LANG === "en" ? PRE_EN : PRE);
+
+    const POST = {
+      code: [{ id: "q1", type: "code", label: "匿名コードを確認してください。", isPost: true }],
+      swls: {
+        title: "§1.", inst: "以下の各文について、あなたの考えに最も近い数字をお選びください。正解や不正解はありません。感じたままに正直にお答えください。",
+        scaleNote: ["1：全く当てはまらない", "2：あまり当てはまらない", "3：どちらかといえば当てはまらない", "4：どちらともいえない", "5：どちらかといえば当てはまる", "6：やや当てはまる", "7：非常によく当てはまる"],
+        scale: L7A, items: [
+          { id: "q2", t: "私は自分の人生に満足している。" }, { id: "q3", t: "私の人生は、とても素晴らしい状態だ。" }, { id: "q4", t: "大体において、私の人生は理想に近い。" }, { id: "q5", t: "私はこれまで、自分の人生に求める大切なものを得てきた。" }, { id: "q6", t: "もう一度人生をやり直せるとしても、ほとんど何も変えないだろう。" },
+        ]
+      },
+      sig: {
+        title: "§4.", inst: "以下の文章は、あなたの人生に対する考えを表しています。それぞれについて、あなた自身にどの程度当てはまるかをお答えください。",
+        scale: L7A, items: [
+          { id: "q7", t: "私の人生は価値あるものである。" },
+          { id: "q8", t: "私の個人的な存在は重要である。" },
+          { id: "q9", t: "私は毎日、人生は生きるに値するという感覚を味わっている。" },
+          { id: "q38", t: "自分の人生で起きた出来事を、必然のものとして受け入れられるようになってきた。" },
+          { id: "q39", t: "自分の人生のさまざまな出来事の中に、一本の意味の糸が通っているのを感じる。" },
+          { id: "q40", t: "自分が経験した苦しみにも、意味があったと思う。" },
+        ]
+      },
+      cses: {
+        title: "§2.", inst: "物事がうまくいかないときや、問題を抱えているとき、以下のことをどのくらい自信を持ってできますか。0（まったくできない）から10（確実にできる）の中から当てはまる数字を選んでください。", scale: C11, items: [
+          { id: "q10", t: "つらい問題を小さな部分に分けて考える。" }, { id: "q11", t: "変更可能なことと変更できないことを整理する。" }, { id: "q12", t: "不快な考えを頭から追い払う。" }, { id: "q13", t: "不快な考えから気をそらす。" }, { id: "q14", t: "不快な考えで動揺しないようにする。" }, { id: "q15", t: "問題に直面したとき、行動計画を立てて実行する。" }, { id: "q16", t: "悲しい気持ちにならないようにする。" }, { id: "q17", t: "ストレスを感じたとき、選択肢を残しておく。" }, { id: "q18", t: "問題の一つひとつに分けて考える。" }, { id: "q19", t: "最も困難な問題の解決策を見つける。" }, { id: "q20", t: "必要なことを友人に手伝ってもらう。" }, { id: "q21", t: "家族や友人から情緒的な支援を得る。" }, { id: "q22", t: "友人をつくる。" },
+        ]
+      },
+      emot: {
+        title: "§5.", inst: "このゲームをプレイして、以下の感情をどの程度感じましたか。最もよく当てはまる数字をお選びください。",
+        scale: L7A, items: [
+          { id: "q41", t: "悲しい気持ちになった。" },
+          { id: "q42", t: "胸が締め付けられるような気持ちになった。" },
+          { id: "q43", t: "不安や恐れを感じた。" },
+          { id: "q44", t: "大切なものへの感謝を感じた。" },
+          { id: "q45", t: "ゲームの登場人物の立場になって、その人が感じていることを理解できた。" },
+          { id: "q73", t: "ゲームの登場人物を気の毒に思い、うまくいってほしいと願った。" },
+          { id: "q46", t: "ゲームの物語やメッセージが心に響いた。" },
+          { id: "q74", t: "登場人物が経験する喪失が、自分自身の経験と重なった。" },
+          { id: "q47", t: "懐かしい気持ちになった。" },
+          { id: "q48", t: "ゲームの世界に引き込まれた。" },
+        ]
+      },
+      refl: {
+        title: "§6.", inst: "このゲームをプレイした後、以下のことはどの程度あてはまりますか。最もよく当てはまる数字をお選びください。",
+        scale: L7A, items: [
+          { id: "q49", t: "ゲームの体験から、何か意味を見出せるかどうかについて考えた。" },
+          { id: "q50", t: "ゲームの体験を通じて、自分が何か学べたかどうかについて考えた。" },
+          { id: "q51", t: "ゲームの体験が、自分の世界観や信念を変えたかどうかについて考えた。" },
+          { id: "q52", t: "ゲームの体験が、自分のこれからにとってどんな意味を持つかについて考えた。" },
+          { id: "q53", t: "ゲームの体験が自分にどのような影響を与えたかについて、意図的に考えた。" },
+        ]
+      },
+      gameSelect: [],
+    };
+
+    // --- Shuffle utilities ---
+    function shuffleArray(arr) {
+      const a = [...arr];
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    }
+
+    function getShuffledItems(key, items) {
+      try {
+        const saved = localStorage.getItem(key);
+        if (saved) {
+          const order = JSON.parse(saved);
+          if (Array.isArray(order) && order.length === items.length) {
+            return order.map(i => items[i]);
+          }
+        }
+        const indices = shuffleArray(items.map((_, i) => i));
+        localStorage.setItem(key, JSON.stringify(indices));
+        return indices.map(i => items[i]);
+      } catch (e) {
+        return shuffleArray(items);
+      }
+    }
+
+    // --- Send to Google Sheets ---
+    async function sendToSheets(type, answers, ts) {
+      if (!GAS_URL) return { skipped: true };
+      try {
+        await fetch(GAS_URL, { method: "POST", mode: "no-cors", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ type, answers, timestamp: ts }), redirect: "follow" });
+        return { success: true };
+      } catch (e) { console.error("送信エラー:", e); return { success: false, error: e.message }; }
+    }
+
+    // --- Anonymous code existence check (GAS doGet). Fails open: any error/timeout => "unknown".
+    async function checkCode(type, code) {
+      if (!GAS_URL || !code) return "unknown";
+      let tm;
+      try {
+        const ctl = new AbortController(); tm = setTimeout(() => ctl.abort(), 6000);
+        const r = await fetch(GAS_URL + "?action=check&type=" + type + "&code=" + encodeURIComponent(code), { signal: ctl.signal });
+        const j = await r.json();
+        if (j && j.result === "success" && typeof j.exists === "boolean") return j.exists ? "exists" : "none";
+      } catch (e) { } finally { if (tm) clearTimeout(tm); }
+      return "unknown";
+    }
+
+    // --- Post-test content for the English version (follows POST__Test.docx) ---
+    const POST_EN = {
+ completed: {
+ "id": "q60",
+ "dn": "Q1",
+ "type": "radio",
+ "label": "Did you complete the reading activity today?",
+ "opts": [
+  "Yes, fully completed",
+  "Partially completed",
+  "No"
+ ]
+},
+ engage: {
+ "title": "Q2.",
+ "inst": "Please rate your experience during the reading activity on a scale from 1 (Strongly Disagree) to 7 (Strongly Agree).",
+ "scale": {
+  "min": 1,
+  "max": 7,
+  "labels": [
+   "Strongly Disagree",
+   "",
+   "",
+   "",
+   "",
+   "",
+   "Strongly Agree"
+  ]
+ },
+ "items": [
+  {
+   "id": "q61",
+   "t": "I felt immersed in the story and scenarios presented in the reading."
+  },
+  {
+   "id": "q63",
+   "t": "Reading about Jordan's situation made me reflect on my own life priorities."
+  }
+ ]
+},
+ coping: {
+ "title": "Section 1",
+ "inst": "Think of a recent stressful or challenging situation in your life. Thinking back to that situation, how accurately does each statement describe how you processed or thought about it?",
+ "scaleNote": [
+  "1 = Does not apply at all",
+  "2 = Applies somewhat",
+  "3 = Applies moderately",
+  "4 = Applies very much"
+ ],
+ "scale": {
+  "min": 1,
+  "max": 4,
+  "labels": [
+   "Does not apply at all",
+   "",
+   "",
+   "Applies very much"
+  ]
+ },
+ "items": [
+  {
+   "id": "q64",
+   "t": "I tried to see the situation in a different light to make it seem more positive."
+  },
+  {
+   "id": "q65",
+   "t": "I looked for the good in what was happening in the situation."
+  },
+  {
+   "id": "q66",
+   "t": "I changed or grew as a person in a good way through the experience."
+  },
+  {
+   "id": "q67",
+   "t": "I came out of the experience with a clearer sense of what is important in life."
+  },
+  {
+   "id": "q68",
+   "t": "I rediscovered what is important in life through the choices I made."
+  },
+  {
+   "id": "q69",
+   "t": "I tried to focus on how I could learn from the experience."
+  }
+ ]
+},
+ cses: {
+ "title": "Section 2",
+ "inst": "Now that you have completed the activity, when things go wrong or when you face difficult problems in your life, how confident are you that you can perform the following actions? Rate your confidence from 0 (\"Cannot do at all\") to 10 (\"Certain can do\").",
+ "scale": {
+  "min": 0,
+  "max": 10,
+  "labels": [
+   "Cannot do at all",
+   "",
+   "",
+   "",
+   "",
+   "",
+   "",
+   "",
+   "",
+   "",
+   "Certain can do"
+  ]
+ },
+ "items": [
+  {
+   "id": "q18",
+   "t": "Think about one part of the problem at a time."
+  },
+  {
+   "id": "q22",
+   "t": "Make new friends."
+  },
+  {
+   "id": "q17",
+   "t": "Leave options open when things are stressful."
+  },
+  {
+   "id": "q14",
+   "t": "Keep yourself from feeling too upset by unpleasant thoughts."
+  },
+  {
+   "id": "q19",
+   "t": "Find solutions to your most difficult problems."
+  },
+  {
+   "id": "q20",
+   "t": "Get friends to help you with the things you need."
+  },
+  {
+   "id": "q13",
+   "t": "Take your mind off unpleasant thoughts."
+  },
+  {
+   "id": "q10",
+   "t": "Break an upsetting problem down into smaller parts."
+  },
+  {
+   "id": "q11",
+   "t": "Sort out what can be changed from what cannot be changed."
+  },
+  {
+   "id": "q12",
+   "t": "Get an unpleasant thought out of your head."
+  },
+  {
+   "id": "q16",
+   "t": "Keep yourself from feeling sad."
+  },
+  {
+   "id": "q15",
+   "t": "Make a plan of action and follow it when confronted with a problem."
+  },
+  {
+   "id": "q21",
+   "t": "Get emotional support from friends and family."
+  }
+ ]
+},
+ mean: {
+ "title": "Section 3",
+ "inst": "Please indicate the extent to which each statement applies to your thoughts about your life right now.",
+ "scaleNote": [
+  "1 = Strongly Disagree",
+  "2 = Disagree",
+  "3 = Slightly Disagree",
+  "4 = Neither Agree nor Disagree",
+  "5 = Slightly Agree",
+  "6 = Agree",
+  "7 = Strongly Agree"
+ ],
+ "scale": {
+  "min": 1,
+  "max": 7,
+  "labels": [
+   "Strongly Disagree",
+   "",
+   "",
+   "",
+   "",
+   "",
+   "Strongly Agree"
+  ]
+ },
+ "items": [
+  {
+   "id": "q8",
+   "t": "My personal existence is significant."
+  },
+  {
+   "id": "q7",
+   "t": "My life is full of value."
+  },
+  {
+   "id": "q40",
+   "t": "I think there was meaning even in the suffering I experienced."
+  },
+  {
+   "id": "q39",
+   "t": "I feel a single thread of meaning running through the various events of my life."
+  },
+  {
+   "id": "q9",
+   "t": "Every day I experience the sense that life is worth living."
+  },
+  {
+   "id": "q38",
+   "t": "I have come to accept the events that occurred in my life as inevitable."
+  }
+ ]
+},
+ swls: { ...POST.swls, title: "Section 4" },
+ emot: { ...POST.emot, title: "Section 5", inst: "While reading this story, to what extent did you experience each of the following? Please select the number that best applies.", items: [...POST.emot.items.filter(i => !["q45", "q46", "q73", "q74"].includes(i.id)), ...([
+ {
+  "id": "q45",
+  "t": "I could put myself in Jordan's position and understand what Jordan was feeling."
+ },
+ {
+  "id": "q73",
+  "t": "I felt sorry for Jordan and hoped that things would turn out well for Jordan."
+ },
+ {
+  "id": "q46",
+  "t": "The story and its messages touched me deeply."
+ },
+ {
+  "id": "q74",
+  "t": "Jordan's experiences of loss resonated with experiences in my own life."
+ }
+])] },
+ refl: { ...POST.refl, title: "Section 6" },
+ reflect: {
+ "id": "q70",
+ "dn": "",
+ "type": "textarea",
+ "label": "Reflecting on Jordan's experiences of loss in the story, what insights did you gain regarding your personal values, inner resilience, or coping resources? How might these insights influence how you approach unexpected life events or stressful situations in the future?",
+ "ph": "Please write your response here."
+},
+ repeat: {
+ "id": "q71",
+ "dn": "",
+ "type": "radio",
+ "label": "Have you previously completed this study in a different course taught by Dr. Toyokawa?",
+ "opts": [
+  "No (Please click Submit to finish)",
+  "Yes (Please answer the additional question below)"
+ ]
+},
+ longit: {
+ "id": "q72",
+ "dn": "",
+ "type": "textarea",
+ "label": "Reflecting on your previous participation earlier this academic year, has your interpretation or understanding of simulated loss and personal resilience changed since you last completed this activity? If so, please briefly describe how your perspective has evolved.",
+ "ph": "Please write your response here."
+},
+};
+
+    // --- Components ---
+    function Bar({ cur, tot }) {
+      const pct = Math.round(cur / tot * 100);
+      return <div style={{ position: "sticky", top: 0, zIndex: 100, background: P.bgSolid, padding: "12px 0 8px", borderBottom: `1px solid ${P.bdr}` }}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 13, color: P.mut }}><span>{T("回答の進捗")}</span><span>{pct}%</span></div>
+        <div style={{ height: 6, background: P.bdr, borderRadius: 3, overflow: "hidden" }}><div style={{ height: "100%", width: `${pct}%`, background: `linear-gradient(90deg,${P.pri},${P.priL})`, borderRadius: 3, transition: "width 0.4s ease" }} /></div>
+      </div>;
+    }
+
+    function SQ({ item, scale, value, onChange, displayNum }) {
+      const n = scale.max - scale.min + 1;
+      const vals = Array.from({ length: n }, (_, i) => scale.min + i);
+      const lFirst = scale.labels[0]; const lLast = scale.labels[n - 1];
+      return <div style={{ padding: "20px 0", borderBottom: `1px solid ${P.bdr}` }}>
+        <p style={{ margin: "0 0 14px", fontSize: 15, color: P.txt, lineHeight: 1.7 }}><span style={{ color: P.acc, fontWeight: 600, marginRight: 8, fontSize: 13 }}>{displayNum}.</span>{T(item.t)}</p>
+        <div style={{ maxWidth: Math.min(n * 56, 620) }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            {vals.map((v, i) => {
+              const sel = value === v; return <div key={v} style={{ display: "flex", flexDirection: "column", alignItems: "center", flex: "1 1 0", minWidth: 0 }}>
+                <button onClick={() => onChange(v)} style={{ width: 36, height: 36, borderRadius: "50%", border: sel ? `2px solid ${P.sel}` : `2px solid rgba(255,255,255,0.2)`, background: sel ? P.sel : "transparent", color: sel ? "#fff" : P.mut, fontSize: 13, fontWeight: 600, cursor: "pointer", transition: "all 0.15s", display: "flex", alignItems: "center", justifyContent: "center" }}
+                  onMouseEnter={e => { if (!sel) { e.target.style.borderColor = P.priL; e.target.style.background = P.selBg } }} onMouseLeave={e => { if (!sel) { e.target.style.borderColor = "rgba(255,255,255,0.2)"; e.target.style.background = "transparent" } }}>{v}</button>
+              </div>
+            })}
+          </div>
+          {(lFirst || lLast) && <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>
+            <span style={{ fontSize: 10, color: P.mut, lineHeight: 1.3 }}>{T(lFirst)}</span>
+            <span style={{ fontSize: 10, color: P.mut, lineHeight: 1.3, textAlign: "right" }}>{T(lLast)}</span>
+          </div>}
+        </div>
+      </div>;
+    }
+
+    function SS({ section, storageKey, answers, set }) {
+      const [items] = useState(() => getShuffledItems(storageKey, section.items));
+      return <div style={{ marginBottom: 32 }}>
+        <div style={{ background: "linear-gradient(90deg,#1E3A6E,#2B5EA7)", color: "#fff", padding: "16px 24px", borderRadius: "10px 10px 0 0", fontFamily: "'Noto Serif JP',serif" }}><h2 style={{ margin: 0, fontSize: 17, fontWeight: 600 }}>{section.title}</h2></div>
+        <div style={{ background: P.card, border: `1px solid ${P.bdr}`, borderTop: "none", borderRadius: "0 0 10px 10px", padding: "8px 24px 16px" }}>
+          <p style={{ fontSize: 14, color: "#fff", lineHeight: 1.8, margin: "12px 0 8px" }}>{T(section.inst)}</p>
+          {section.scaleNote && <div style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 12, color: P.mut, background: P.secBg, borderRadius: 6, padding: "8px 12px", margin: "0 0 8px" }}>
+            {section.scaleNote.map((n, i) => <span key={i}>{T(n)}</span>)}
+          </div>}
+          {items.map((it, idx) => <SQ key={it.id} item={it} scale={section.scale} value={answers[it.id]} onChange={v => set(it.id, v)} displayNum={idx + 1} />)}
+        </div>
+      </div>;
+    }
+
+
+    function LangSwitch({ lang, onChange }) {
+      const b = (code, label) => <button key={code} type="button" onClick={() => onChange(code)} aria-pressed={lang === code} style={{ padding: "5px 12px", fontSize: 12, fontWeight: 600, cursor: "pointer", border: `1px solid ${P.bdr}`, background: lang === code ? P.pri : "rgba(15,31,61,0.85)", color: lang === code ? "#fff" : P.mut, fontFamily: "'Noto Sans JP',sans-serif" }}>{label}</button>;
+      return <div role="group" aria-label="Language" style={{ display: "inline-flex", borderRadius: 8, overflow: "hidden" }}>{b("ja", "日本語")}{b("en", "English")}</div>;
+    }
+
+    function CodeGen({ value, onChange, isPost, dupCode }) {
+      // 正規化: 全角→半角(NFKC)、空白除去、英字は小文字
+      const norm = (s) => (s || "").normalize("NFKC").replace(/\s+/g, "").toLowerCase();
+      const okFormat = (s) => s.length >= 4 && s.length <= 20 && /^[\p{L}\p{N}_-]+$/u.test(s) && !/^(.)\1*$/u.test(s);
+      const [text, setText] = useState(value || "");
+      const [autoLoaded, setAutoLoaded] = useState(false);
+      const [touched, setTouched] = useState(false);
+      const [status, setStatus] = useState(""); // "" | "checking" | "exists" | "none" | "unknown"
+      const [generated, setGenerated] = useState(false);
+      const latest = React.useRef("");
+      const ID_WORDS = ["maple", "river", "cloud", "ember", "willow", "harbor", "meadow", "lantern", "pebble", "aurora", "cedar", "comet", "falcon", "glacier", "juniper", "orchid", "sparrow", "tundra", "violet", "zephyr", "amber", "breeze", "coral", "dune", "fern", "hazel", "iris", "moss", "opal", "pine", "quartz", "sage"];
+      const genId = () => { const a = new Uint32Array(2); (window.crypto || window.msCrypto).getRandomValues(a); return ID_WORDS[a[0] % ID_WORDS.length] + (1000 + (a[1] % 9000)); };
+      const onGen = async () => { for (let i = 0; i < 5; i++) { const c = genId(); setText(c); setTouched(true); onChange(c); latest.current = c; setStatus("checking"); const r = await checkCode("pre", c); if (r !== "exists" || i === 4) { if (latest.current === c) setStatus(r); setGenerated(true); return; } } };
+      const n = norm(text);
+      const valid = okFormat(n);
+
+      const runCheck = async (code) => { latest.current = code; setStatus("checking"); const r = await checkCode("pre", code); if (latest.current === code) setStatus(r); };
+      const onText = (v) => { setText(v); setGenerated(false); setStatus(""); latest.current = ""; const nn = norm(v); onChange(okFormat(nn) ? nn : ""); };
+      const onBlurText = (e) => { e.target.style.borderColor = P.bdr; setTouched(true); if (valid && status === "") runCheck(n); };
+      useEffect(() => { if (isPost && !value) { try { const saved = localStorage.getItem("survey_anon_code"); if (saved) { const sv = norm(saved); if (okFormat(sv)) { setText(sv); onChange(sv); setAutoLoaded(true); runCheck(sv); } } } catch (e) { } } }, []);
+
+      const dup = valid && ((dupCode && dupCode === value) || (!isPost && status === "exists"));
+      const note = (color, txt) => <p style={{ fontSize: 12, color, margin: "8px 0 0", lineHeight: 1.7 }}>{txt}</p>;
+      let msg = null;
+      if (touched && text && !valid) msg = note(P.err, T("4〜20文字の文字・数字（記号は - と _ のみ）で入力してください。同じ文字だけの並びは使えません。"));
+      else if (dup) msg = note(P.err, T("このコードはすでに使われています。別のコードにしてください。（すでに事前アンケートに回答済みの場合は、事後アンケートへお進みください。）"));
+      else if (valid && status === "checking") msg = note(P.mut, T("確認中..."));
+      else if (valid && isPost && status === "exists") msg = note("#4CAF50", T("✓ 事前アンケートのコードと一致しました。"));
+      else if (valid && isPost && status === "none") msg = note(P.acc, T("事前アンケートでこのコードが見つかりませんでした。入力を確認してください。（このまま進むこともできます。）"));
+      else if (valid && !isPost && status === "none") msg = note("#4CAF50", T("✓ このコードを使用できます。"));
+
+      const fs = { width: "100%", maxWidth: 340, padding: "10px 14px", border: `1.5px solid ${dup || (touched && text && !valid) ? P.err : P.bdr}`, borderRadius: 8, fontSize: 16, fontFamily: "monospace", letterSpacing: 1, background: "rgba(255,255,255,0.08)", color: P.txt, outline: "none", boxSizing: "border-box", transition: "border-color 0.2s" };
+
+      return <div>
+        {isPost && autoLoaded && <p style={{ fontSize: 13, color: "#4CAF50", marginBottom: 12, lineHeight: 1.7, padding: "10px 14px", background: "rgba(76,175,80,0.12)", borderRadius: 8, border: "1px solid rgba(76,175,80,0.3)" }}>{T("✓ 事前アンケートのコードが自動入力されました。内容をご確認ください。")}</p>}
+        {isPost
+          ? <p style={{ fontSize: 13, color: P.mut, marginBottom: 12, lineHeight: 1.7 }}>{T("事前アンケートで使ったコードを入力してください。通常は自動で入力されます。")}</p>
+          : <div style={{ marginBottom: 12 }}>
+            <p style={{ fontSize: 13, color: P.mut, margin: "0 0 6px", lineHeight: 1.7 }}>{T("このコードは、ゲーム体験後のアンケートの回答と結びつけるために使います。ご自身で決めた、4〜20文字の文字・数字（記号は - と _ のみ）をご入力ください。")}</p>
+            <p style={{ fontSize: 13, color: P.mut, margin: "0 0 6px", lineHeight: 1.7 }}>{T("例：好きな言葉＋数字4桁（sakura2468）")}</p>
+            <p style={{ fontSize: 13, color: P.acc, margin: 0, lineHeight: 1.7 }}>{T("本名など、個人が特定できる情報は使わないでください。")}</p>
+          </div>}
+        <input type="text" value={text} onChange={e => onText(e.target.value)} placeholder={T("例：sakura2468")} maxLength={40} autoComplete="off" autoCapitalize="none" spellCheck={false} style={fs}
+          onFocus={e => e.target.style.borderColor = P.pri} onBlur={onBlurText} />
+        {!isPost && <div style={{ marginTop: 10 }}><button type="button" onClick={onGen} style={{ padding: "8px 16px", background: "transparent", color: P.acc, border: `1.5px solid ${P.acc}`, borderRadius: 8, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>{LANG === "en" ? "Generate a random ID for me" : "ランダムなコードを自動で作成する"}</button></div>}
+        {!isPost && generated && valid && <p style={{ fontSize: 13, color: P.acc, margin: "10px 0 0", lineHeight: 1.7, padding: "10px 14px", background: "rgba(255,255,255,0.06)", borderRadius: 8 }}>{LANG === "en" ? <>Your ID is <b style={{ fontFamily: "monospace", color: P.txt, letterSpacing: 1 }}>{n}</b>. Please write it down or take a screenshot — you will need the same ID for the post-activity survey. You can press the button again to get a different one, or type your own.</> : <>あなたのコードは <b style={{ fontFamily: "monospace", color: P.txt, letterSpacing: 1 }}>{n}</b> です。事後アンケートでも同じコードが必要になるので、メモまたはスクリーンショットで控えてください。別のコードにしたい場合はもう一度ボタンを押すか、ご自身で入力してください。</>}</p>}
+        {msg}
+        {valid && n !== text && <p style={{ fontSize: 12, color: P.mut, margin: "8px 0 0" }}>{T("使用されるコード：")}<span style={{ fontFamily: "monospace", color: P.txt }}>{n}</span></p>}
+      </div>;
+    }
+
+    function DQ({ q, value, onChange, ov, onOv, displayNum, dupCode }) {
+      const fs = { width: "100%", padding: "10px 14px", border: `1.5px solid ${P.bdr}`, borderRadius: 8, fontSize: 15, fontFamily: "'Noto Sans JP',sans-serif", background: "rgba(255,255,255,0.08)", color: P.txt, outline: "none", boxSizing: "border-box", transition: "border-color 0.2s" };
+      const label = displayNum ? `${displayNum}.` : (q.dn !== undefined ? q.dn : q.id.toUpperCase());
+      if (q.type === "code") return <div style={{ marginBottom: 24 }}>
+        <label style={{ display: "block", fontSize: 15, color: P.txt, marginBottom: 12, lineHeight: 1.7, fontWeight: 500 }}>{T(q.label)}</label>
+        <CodeGen value={value} onChange={onChange} isPost={q.isPost} dupCode={dupCode} />
+      </div>;
+      if (q.type === "text" || q.type === "number") return <div style={{ marginBottom: 24 }}>
+        <label style={{ display: "block", fontSize: 15, color: P.txt, marginBottom: 8, lineHeight: 1.7 }}><span style={{ color: P.acc, fontWeight: 600, marginRight: 8, fontSize: 13 }}>{label}</span>{T(q.label)}</label>
+        {q.hint && <p style={{ fontSize: 12, color: P.mut, margin: "-4px 0 8px" }}>{T(q.hint)}</p>}
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <input type={q.type === "number" ? "number" : "text"} value={value || ""} onChange={e => onChange(e.target.value)} placeholder={T(q.ph)} style={{ ...fs, maxWidth: q.type === "number" ? 120 : 300 }} onFocus={e => e.target.style.borderColor = P.pri} onBlur={e => e.target.style.borderColor = P.bdr} />
+          {q.suf && <span style={{ fontSize: 15, color: P.mut }}>{T(q.suf)}</span>}
+        </div>
+      </div>;
+      if (q.type === "textarea") return <div style={{ marginBottom: 24 }}>
+        <label style={{ display: "block", fontSize: 15, color: P.txt, marginBottom: 8, lineHeight: 1.7 }}><span style={{ color: P.acc, fontWeight: 600, marginRight: 8, fontSize: 13 }}>{label}</span>{T(q.label)}</label>
+        <textarea value={value || ""} onChange={e => onChange(e.target.value)} placeholder={T(q.ph)} rows={5} style={{ ...fs, resize: "vertical", minHeight: 100 }} onFocus={e => e.target.style.borderColor = P.pri} onBlur={e => e.target.style.borderColor = P.bdr} />
+      </div>;
+      if (q.type === "radio") return <div style={{ marginBottom: 24 }}>
+        <p style={{ fontSize: 15, color: P.txt, marginBottom: 10, lineHeight: 1.7 }}><span style={{ color: P.acc, fontWeight: 600, marginRight: 8, fontSize: 13 }}>{label}</span>{T(q.label)}</p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {getOpts(q).map((o, i) => {
+            const s = value === o; return <label key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 14px", borderRadius: 8, cursor: "pointer", transition: "all 0.15s", background: s ? P.selBg : "transparent", border: `1.5px solid ${s ? P.pri : "transparent"}`, fontSize: 14 }}>
+              <div style={{ width: 18, height: 18, borderRadius: "50%", border: `2px solid ${s ? P.pri : P.bdr}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{s && <div style={{ width: 10, height: 10, borderRadius: "50%", background: P.pri }} />}</div>
+              <span style={{ color: P.txt }}>{T(o)}</span><input type="radio" name={q.id} checked={s} onChange={() => onChange(o)} style={{ display: "none" }} />
+            </label>
+          })}
+          {q.hasOther && value === q.opts[q.otherIdx] && <input type="text" value={ov || ""} onChange={e => onOv(e.target.value)} placeholder={T("具体的にお書きください")} style={{ ...fs, maxWidth: 300, marginLeft: 42 }} onFocus={e => e.target.style.borderColor = P.pri} onBlur={e => e.target.style.borderColor = P.bdr} />}
+        </div>
+      </div>;
+      if (q.type === "checkbox") {
+        const sel = value || []; return <div style={{ marginBottom: 24 }}>
+          <p style={{ fontSize: 15, color: P.txt, marginBottom: 10, lineHeight: 1.7 }}><span style={{ color: P.acc, fontWeight: 600, marginRight: 8, fontSize: 13 }}>{q.dn !== undefined ? q.dn : q.id.toUpperCase()}</span>{T(q.label)}</p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {getOpts(q).map((o, i) => {
+              const c = sel.includes(o); return <label key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 14px", borderRadius: 8, cursor: "pointer", transition: "all 0.15s", background: c ? P.selBg : "transparent", border: `1.5px solid ${c ? P.pri : "transparent"}`, fontSize: 14 }}>
+                <div style={{ width: 18, height: 18, borderRadius: 4, border: `2px solid ${c ? P.pri : P.bdr}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, background: c ? P.pri : "transparent" }}>{c && <svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 6l3 3 5-5" stroke="#fff" strokeWidth="2" fill="none" /></svg>}</div>
+                <span style={{ color: P.txt }}>{T(o)}</span><input type="checkbox" checked={c} onChange={() => { const nx = c ? sel.filter(s => s !== o) : [...sel, o]; onChange(nx) }} style={{ display: "none" }} />
+              </label>
+            })}
+            {q.hasOther && sel.includes(q.opts[q.otherIdx]) && <input type="text" value={ov || ""} onChange={e => onOv(e.target.value)} placeholder={T("具体的にお書きください")} style={{ ...fs, maxWidth: 300, marginLeft: 42 }} onFocus={e => e.target.style.borderColor = P.pri} onBlur={e => e.target.style.borderColor = P.bdr} />}
+          </div>
+        </div>;
+      }
+      return null;
+    }
+
+    // --- Informed consent (English version only) ---
+    const CONSENT_KEY = "survey_consent_en";
+    const readConsent = () => { try { const v = Number(localStorage.getItem(CONSENT_KEY)); return v > 0 && Date.now() - v < 24 * 60 * 60 * 1000; } catch (e) { return false; } };
+    const STUDY_TITLE_EN = "Awareness of Inner Resilience and Motivation for Growth Through Simulated Loss Experiences";
+
+    function SupportList() {
+      const li = { marginBottom: 10, lineHeight: 1.8 };
+      return <ul style={{ margin: "0 0 4px", paddingLeft: 22 }}>
+        <li style={li}><strong>SOU Telus Health Student Support:</strong> Free and confidential mental health support available to SOU students 24 hours a day through online, app-based, and telephone services.</li>
+        <li style={li}><strong>988 Suicide &amp; Crisis Lifeline:</strong> Free and confidential crisis support available 24 hours a day by phone, text, or online chat. (Call or text <a href="tel:988" style={{ color: P.priL }}>988</a>.)</li>
+        <li style={li}><strong>Jackson County Mental Health Crisis Hotline:</strong> <a href="tel:5417748201" style={{ color: P.priL }}>541-774-8201</a>, available 24 hours a day.</li>
+      </ul>;
+    }
+
+    function SupportInline() {
+      return <p style={{ margin: 0, lineHeight: 1.8 }}><strong>SOU Telus Health Student Support:</strong> Free and confidential mental health support available to SOU students 24 hours a day through online, app-based, and telephone services. <strong>988 Suicide &amp; Crisis Lifeline:</strong> Free and confidential crisis support available 24 hours a day by phone, text, or online chat. (Call or text <a href="tel:988" style={{ color: P.priL }}>988</a>.) <strong>Jackson County Mental Health Crisis Hotline:</strong> <a href="tel:5417748201" style={{ color: P.priL }}>541-774-8201</a>, available 24 hours a day.</p>;
+    }
+
+    function ConsentScreen({ lang, onChange, onAgree, onDecline }) {
+      const [choice, setChoice] = useState("");
+      const qref = React.useRef(null);
+      const [seen, setSeen] = useState(false);
+      useEffect(() => {
+        const el = qref.current;
+        if (!el) return;
+        if (typeof IntersectionObserver === "undefined") { setSeen(true); return; }
+        const io = new IntersectionObserver(es => { es.forEach(e => { if (e.isIntersecting) setSeen(true); }); }, { threshold: 0.1 });
+        io.observe(el);
+        return () => io.disconnect();
+      }, []);
+      const goConsent = () => { try { if (qref.current) qref.current.scrollIntoView({ behavior: "smooth", block: "start" }); } catch (e) { } };
+      const h2 = { fontFamily: "'Noto Serif JP',serif", fontSize: 18, color: "#fff", margin: "30px 0 10px", fontWeight: 600 };
+      const para = { fontSize: 14, color: "rgba(255,255,255,0.85)", lineHeight: 1.8, margin: "0 0 12px" };
+      const ul = { margin: "0 0 12px", paddingLeft: 22, fontSize: 14, color: "rgba(255,255,255,0.85)" };
+      const li = { marginBottom: 8, lineHeight: 1.8 };
+      const opt = (v, text) => {
+        const on = choice === v;
+        return <label style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", borderRadius: 10, cursor: "pointer", marginBottom: 8, background: on ? P.selBg : "transparent", border: `1.5px solid ${on ? P.pri : P.bdr}`, fontSize: 14, color: P.txt }}>
+          <span style={{ width: 18, height: 18, borderRadius: "50%", border: `2px solid ${on ? P.pri : P.bdr}`, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{on && <span style={{ width: 10, height: 10, borderRadius: "50%", background: P.pri }} />}</span>
+          <span>{text}</span>
+          <input type="radio" name="consent" checked={on} onChange={() => setChoice(v)} style={{ display: "none" }} />
+        </label>;
+      };
+      return <div style={{ minHeight: "100vh", padding: "24px 20px 90px" }}>
+        <div style={{ maxWidth: 720, margin: "0 auto" }}>
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}><LangSwitch lang={lang} onChange={onChange} /></div>
+          <div style={{ background: P.card, border: `1px solid ${P.bdr}`, borderRadius: 12, padding: "28px 28px 32px" }}>
+            <h1 style={{ fontFamily: "'Noto Serif JP',serif", fontSize: 24, color: "#fff", margin: "0 0 16px", fontWeight: 700 }}>Informed Consent</h1>
+            <div style={{ background: "rgba(232,164,74,0.12)", border: `1px solid ${P.acc}`, borderRadius: 10, padding: "14px 16px", margin: "0 0 24px" }}>
+              <p style={{ fontSize: 14, color: "#fff", lineHeight: 1.7, margin: "0 0 8px" }}>Please read this form to the end. At the bottom of this page, you will be asked whether you agree to participate (Yes / No).</p>
+              <button type="button" onClick={goConsent} style={{ background: "transparent", border: "none", padding: 0, color: P.priL, fontSize: 14, fontWeight: 600, cursor: "pointer", textDecoration: "underline" }}>Go to the consent question &darr;</button>
+            </div>
+            <p style={para}><strong>Study Title:</strong> {STUDY_TITLE_EN}</p>
+            <p style={para}><strong>Principal Investigator (PI):</strong> Noriko Toyokawa, Ph.D., Associate Professor, Psychology, Southern Oregon University</p>
+            <p style={{ ...para, marginBottom: 4 }}><strong>Co-Investigators:</strong></p>
+            <p style={{ ...para, margin: "0 0 2px" }}>Hironori Sakai, Project Researcher, Ludic Lab in Information Studies, The University of Tokyo</p>
+            <p style={para}>Toru Fujimoto, Professor, Interfaculty Initiative in Information Studies, The University of Tokyo</p>
+
+            <h2 style={h2}>Invitation to Participate</h2>
+            <p style={para}>I am Dr. Noriko Toyokawa, Associate Professor of Psychology at Southern Oregon University. My co-investigators and I invite you to participate in the research study entitled {STUDY_TITLE_EN}.</p>
+            <p style={para}>Before deciding whether to participate, please read the following information carefully. Participation is voluntary. You may choose not to participate or withdraw from the study at any time without penalty.</p>
+
+            <h2 style={h2}>Purpose of the Study</h2>
+            <p style={para}>We are developing course activities designed to enhance students' awareness of their inner abilities and resources through online learning activities. This study examines students' experiences of a reading activity involving a fictional story of stressful or loss experiences and their reflections following the activity.</p>
+            <p style={{ ...para, marginBottom: 6 }}>You are eligible to participate if:</p>
+            <ol style={ul}>
+              <li style={li}>You are 18 years of age or older and are enrolled as a student in a university course.</li>
+              <li style={li}>You have the skills and resources necessary to participate in an online course activity.</li>
+              <li style={li}>You can understand instructions and respond to questions in English.</li>
+            </ol>
+
+            <h2 style={h2}>Participants' Roles and Responsibilities</h2>
+            <ul style={ul}>
+              <li style={li}>After reading this consent form and indicating that you understand the information provided, you will be asked whether you voluntarily agree to participate in the study. If you select Yes, you will proceed to the study activity.</li>
+              <li style={li}>You will be asked to create a unique study ID that will be used throughout the study. The study ID is designed to allow your responses to be collected without directly identifying you. The research dataset will not include your name or other direct identifiers. Your responses will be analyzed as aggregated research data together with the responses of approximately 80 participants.</li>
+              <li style={li}>After creating your study ID, you will be guided to the study activity. Please follow the instructions and complete the activity. The activity is expected to take approximately 20 minutes.</li>
+              <li style={li}>After completing the activity, you will be directed to a post-activity survey. The survey is expected to take approximately 20 minutes. You will also be asked to provide a written reflection on your experience of the activity, which is expected to take approximately 10 minutes.</li>
+              <li style={li}>You may take different courses taught by the PI during the 2026–2027 academic year. You may choose whether or not to participate in this study again when you take another course taught by the PI during the same academic year.</li>
+              <li style={li}>If you choose to participate again, you will be asked one additional question about whether your interpretation of the experience has changed after completing the activity. This additional question will take approximately 5 minutes to complete. If you choose not to participate again and would like to receive extra credit, you may complete an alternative extra-credit activity for the course.</li>
+            </ul>
+
+            <h2 style={h2}>Participants' Benefits</h2>
+            <p style={{ ...para, marginBottom: 6 }}>You may benefit from participating by:</p>
+            <ul style={ul}>
+              <li style={li}>There may be no direct personal benefit from participating in this study.</li>
+              <li style={li}>Reflecting on your own coping resources, personal priorities, and responses to stressful life situations.</li>
+              <li style={li}>Completing a reading-based educational activity designed to promote reflection on stress management and personal growth.</li>
+              <li style={li}>Gaining firsthand experience with an online psychological research study, including contemporary approaches to digital experimental research and data collection.</li>
+            </ul>
+
+            <h2 style={h2}>Potential Risks and Discomforts</h2>
+            <ul style={ul}>
+              <li style={li}>The risks associated with participating in this study are expected to be minimal.</li>
+              <li style={li}>However, some participants may feel uncomfortable when engaging with a fictional story of loss experiences or reflecting on stressful or loss-related experiences. You may experience temporary emotional discomfort or distress while completing the activity or reflecting on your experience.</li>
+            </ul>
+            <p style={{ ...para, marginBottom: 6 }}>To minimize potential risks:</p>
+            <ul style={ul}>
+              <li style={li}>Participation in this study is completely voluntary.</li>
+              <li style={li}>You may stop participating in the study at any time without penalty.</li>
+              <li style={li}>Choosing not to participate or withdraw from the study before completing the activity will not affect your academic performance or your relationship with the course instructor, who is also the Principal Investigator.</li>
+              <li style={li}>If you do not wish to participate in the study or withdraw before completing the study activity, you may complete an alternative extra-credit activity provided through a separate course module.</li>
+              <li style={li}>If you experience emotional discomfort or distress related to the study activities, you are encouraged to seek support from an appropriate mental health resource.</li>
+              <li style={li}>The following free or confidential resources are available:
+                <div style={{ marginTop: 8 }}><SupportInline /></div>
+              </li>
+            </ul>
+
+            <h2 style={h2}>Data Storage and Security</h2>
+            <ul style={ul}>
+              <li style={li}>The research data will not include participants' names or other direct identifying information.</li>
+              <li style={li}>The data will be stored securely on the Principal Investigator's office computer.</li>
+              <li style={li}>De-identified research data may be shared with Dr. Hironori Sakai through an external storage device.</li>
+              <li style={li}>The de-identified research data will be maintained as secondary data.</li>
+            </ul>
+
+            <h2 style={h2}>Questions About the Research</h2>
+            <p style={{ ...para, marginBottom: 6 }}>If you have questions or concerns about this study, please contact the Principal Investigator:</p>
+            <p style={{ ...para, lineHeight: 1.9 }}>
+              <strong>The Principal Investigator</strong><br />
+              Noriko Toyokawa, Ph.D.<br />
+              Associate Professor, Psychology<br />
+              Southern Oregon University<br />
+              <a href="mailto:toyokawan@sou.edu" style={{ color: P.priL }}>toyokawan@sou.edu</a><br />
+              541-522-6858
+            </p>
+            <p style={{ ...para, lineHeight: 1.9 }}>
+              <strong>Institutional Review Board</strong><br />
+              Southern Oregon University<br />
+              Clayton Austin, Ph.D.<br />
+              Director, Center for the Advancement of Teaching and Learning<br />
+              1250 Siskiyou Blvd.<br />
+              Ashland, OR 97520<br />
+              Tel: 541-552-8290
+            </p>
+
+            <h2 ref={qref} id="consent-question" style={h2}>Consent to Participate</h2>
+            <p style={para}>I have read and understood the information provided in this Informed Consent Form. I voluntarily agree to participate in this study.</p>
+            <div style={{ marginTop: 14 }}>
+              {opt("yes", "1. Yes, I agree to participate in the study.")}
+              {opt("no", "2. No, I do not agree to participate in the study.")}
+            </div>
+            <div style={{ textAlign: "center", marginTop: 20 }}>
+              <button type="button" disabled={!choice} onClick={() => (choice === "yes" ? onAgree() : onDecline())} style={{ padding: "14px 48px", background: choice ? P.pri : "rgba(255,255,255,0.12)", color: choice ? "#fff" : P.mut, border: "none", borderRadius: 10, fontSize: 16, fontWeight: 600, cursor: choice ? "pointer" : "not-allowed", boxShadow: choice ? "0 2px 12px rgba(91,138,240,0.3)" : "none" }}>Continue</button>
+            </div>
+          </div>
+        </div>
+        {!seen && <div style={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 50, background: "rgba(15,31,61,0.96)", borderTop: `1px solid ${P.bdr}`, padding: "10px 16px", textAlign: "center" }}>
+          <span style={{ fontSize: 13, color: "rgba(255,255,255,0.85)", marginRight: 12 }}>To answer Yes / No, scroll to the bottom.</span>
+          <button type="button" onClick={goConsent} style={{ padding: "6px 16px", background: P.pri, color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Go to the consent question &darr;</button>
+        </div>}
+      </div>;
+    }
+
+    function DeclineScreen({ lang, onChange, onBack }) {
+      const para = { fontSize: 15, color: P.mut, lineHeight: 1.8, margin: "0 0 16px", textAlign: "left" };
+      return <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+        <div style={{ maxWidth: 560, width: "100%", textAlign: "center" }}>
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}><LangSwitch lang={lang} onChange={onChange} /></div>
+          <h2 style={{ fontFamily: "'Noto Serif JP',serif", fontSize: 22, color: P.pri, marginBottom: 20 }}>Thank you for your time</h2>
+          <p style={para}>You have chosen not to participate in this study. No responses have been collected, and you may now close this page.</p>
+          <p style={para}>Choosing not to participate will not affect your academic performance or your relationship with the course instructor, who is also the Principal Investigator. If you wish, you may complete an alternative extra-credit activity provided through a separate course module.</p>
+          <p style={{ ...para, textAlign: "center", marginTop: 24 }}>If you chose "No" by mistake, you can return to the consent form.</p>
+          <button type="button" onClick={onBack} style={{ padding: "12px 32px", background: "transparent", color: P.pri, border: `2px solid ${P.pri}`, borderRadius: 8, fontSize: 14, cursor: "pointer", fontWeight: 600 }}>Return to the consent form</button>
+        </div>
+      </div>;
+    }
+
+    // --- Main App ---
+    function App() {
+      const [view, setView] = useState("home");
+      const [ans, setAns] = useState({});
+      const [oth, setOth] = useState({});
+      const [done, setDone] = useState(false);
+      const [errs, setErrs] = useState(false);
+      const [saving, setSaving] = useState(false);
+      const [gs, setGs] = useState(null);
+      const [lang, setLang] = useState(LANG);
+      const [dupCode, setDupCode] = useState("");
+      const [consentEn, setConsentEn] = useState(readConsent);
+      const [declined, setDeclined] = useState(false);
+      const switchLang = (l) => { LANG = l; try { localStorage.setItem("survey_lang", l); document.documentElement.lang = l; document.title = T("ゲーム体験についてのご質問"); } catch (e) { } setLang(l); };
+
+      const sa = useCallback((id, v) => setAns(p => ({ ...p, [id]: v })), []);
+      const so = useCallback((id, v) => setOth(p => ({ ...p, [id]: v })), []);
+      const reset = () => { setView("home"); setAns({}); setOth({}); setDone(false); setErrs(false); setGs(null); window.scrollTo(0, 0) };
+
+      const cnt = () => Object.keys(ans).filter(k => { const v = ans[k]; if (Array.isArray(v)) return v.length > 0; return v !== undefined && v !== null && v !== "" }).length;
+      const tot = () => {
+        if (view === "pre") return PRE_X().demo.length + PRE_X().swls.items.length + PRE_X().cses.items.length;
+        if (view === "post") return POST.code.length + POST.swls.items.length + POST.cses.items.length + POST.emot.items.length + POST.refl.items.length + POST.gameSelect.length;
+        return 1;
+      };
+      const reqIds = () => {
+        if (view === "pre") return ["q1"]; // 匿名コード(q1)のみ必須、残りはすべて任意
+        if (view === "post") return ["q1"]; // 匿名コード(q1)のみ必須、残りはすべて任意
+        return [];
+      };
+      const miss = () => reqIds().filter(id => { const v = ans[id]; if (Array.isArray(v)) return v.length === 0; return v === undefined || v === null || v === "" });
+
+      const submit = async () => {
+        if (saving) return;
+        const m = miss();
+        if (m.length > 0) { setErrs(true); const el = document.getElementById(`f-${m[0]}`); if (el) el.scrollIntoView({ behavior: "smooth", block: "center" }); return; }
+        if (view === "pre") { setSaving(true); const cr = await checkCode("pre", ans.q1); setSaving(false); if (cr === "exists") { setDupCode(ans.q1); const el = document.getElementById("f-q1"); if (el) el.scrollIntoView({ behavior: "smooth", block: "center" }); return; } }
+        const ts = new Date().toLocaleString("sv-SE", { timeZone: "America/Los_Angeles" }).replace(" ", "T"); /* SOU (Pacific Time) */
+        const fa = { ...ans }; Object.keys(oth).forEach(k => { if (oth[k]) fa[`${k}_other`] = oth[k] });
+        fa.lang = LANG; // 回答言語 (ja / en)
+        fa.site = "reading"; // 回答元サイト (dice / straying / reading)
+        sendToSheets(view, fa, ts);
+        if (view === "pre" && fa.q1) { try { localStorage.setItem("survey_anon_code", fa.q1) } catch (e) { } }
+        setDone(true); window.scrollTo(0, 0);
+      };
+
+      // CONSENT (English version only): Yes -> continue / No -> end
+      if (lang === "en" && !consentEn) return declined
+        ? <DeclineScreen lang={lang} onChange={switchLang} onBack={() => setDeclined(false)} />
+        : <ConsentScreen lang={lang} onChange={switchLang} onDecline={() => setDeclined(true)} onAgree={() => { try { localStorage.setItem(CONSENT_KEY, String(Date.now())) } catch (e) { } setConsentEn(true) }} />;
+
+      // HOME
+      if (view === "home") return <div style={{ minHeight: "100vh", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+        <div style={{ maxWidth: 540, width: "100%" }}>
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}><LangSwitch lang={lang} onChange={switchLang} /></div>
+          <div style={{ textAlign: "center", marginBottom: 36 }}>
+            <div style={{ width: 64, height: 64, borderRadius: "50%", background: "linear-gradient(135deg,#2B5EA7,#5B8AF0)", margin: "0 auto 20px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2"><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" /></svg>
+            </div>
+            <h1 style={{ fontFamily: "'Noto Serif JP',serif", fontSize: 24, color: "#FFFFFF", marginBottom: 16, fontWeight: 700, lineHeight: 1.5 }}>{LANG === "en" ? STUDY_TITLE_EN : <>{T("ゲーム体験についてのご質問に")}<br />{T("ご協力ください。")}</>}</h1>
+            <p style={{ fontSize: 14, color: "rgba(255,255,255,0.85)", lineHeight: 1.9, textAlign: "left", margin: "0 auto", maxWidth: 500 }}>{T("この質問は，ゲームを用いて人生を省察する体験の影響について確認することを目的としています。")}</p>
+          </div>
+          {LANG !== "en" && <div style={{ marginBottom: 28, paddingLeft: 4 }}>
+            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.8)", lineHeight: 2.0, margin: "0 0 16px" }}>{T("ここで得られたデータは統計的に処理され，個人情報が公開されることはありません。")}<br />{T("また，回答は任意であり，回答の有無があなたの評価に影響することはありません。")}<br />{T("回答結果が評価に影響することもありません。")}</p>
+            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.8)", lineHeight: 2.0, margin: 0 }}>{T("できるだけ多くの方のご協力を必要としております。")}<br />{T("ご協力の程よろしくお願い申し上げます。")}</p>
+          </div>}
+          <div style={{ display: "flex", flexDirection: "column", gap: 16, marginBottom: 28 }}>
+            <button onClick={() => { setView("pre"); setAns({}); setOth({}); setDone(false); setErrs(false); setGs(null); window.scrollTo(0, 0) }}
+              style={{ background: "linear-gradient(135deg,rgba(91,138,240,0.15),rgba(43,94,167,0.2))", border: "1.5px solid rgba(91,138,240,0.35)", borderRadius: 12, padding: "24px 28px", textAlign: "left", cursor: "pointer", transition: "all 0.2s", boxShadow: "0 2px 8px rgba(0,0,0,0.2)" }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = "#5B8AF0"; e.currentTarget.style.boxShadow = "0 4px 20px rgba(91,138,240,0.3)"; e.currentTarget.style.background = "linear-gradient(135deg,rgba(91,138,240,0.25),rgba(43,94,167,0.3))" }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(91,138,240,0.35)"; e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.2)"; e.currentTarget.style.background = "linear-gradient(135deg,rgba(91,138,240,0.15),rgba(43,94,167,0.2))" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div><h3 style={{ fontFamily: "'Noto Sans JP',sans-serif", fontSize: 17, color: "rgba(255,255,255,0.85)", margin: "0 0 6px", fontWeight: 500 }}>{T("ゲーム体験前のご質問")}</h3>
+                  <p style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", margin: 0, lineHeight: 1.6 }}>{(LANG === "en" ? "Background, life satisfaction, coping, meaning, and playfulness" : T("人生満足度、コーピングに関する質問"))}</p>
+                  <p style={{ fontSize: 12, color: P.acc, margin: "6px 0 0", fontWeight: 500 }}>{LANG === "en" ? "Estimated time: about 10 min" : T("推定時間：3〜5分")}</p></div>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#5B8AF0" strokeWidth="2.5"><path d="M9 18l6-6-6-6" /></svg>
+              </div>
+            </button>
+
+            <a href={LANG === "en" ? GAME_URL_EN : GAME_URL} target="_blank" rel="noopener noreferrer" style={{ display: "block", background: "linear-gradient(135deg,rgba(232,164,74,0.15),rgba(200,130,40,0.2))", border: "1.5px solid rgba(232,164,74,0.4)", borderRadius: 12, padding: "24px 28px", textAlign: "left", cursor: "pointer", transition: "all 0.2s", boxShadow: "0 2px 8px rgba(0,0,0,0.2)", textDecoration: "none" }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = P.acc; e.currentTarget.style.boxShadow = "0 4px 20px rgba(232,164,74,0.3)"; e.currentTarget.style.background = "linear-gradient(135deg,rgba(232,164,74,0.25),rgba(200,130,40,0.3))" }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(232,164,74,0.4)"; e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.2)"; e.currentTarget.style.background = "linear-gradient(135deg,rgba(232,164,74,0.15),rgba(200,130,40,0.2))" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div><h3 style={{ fontFamily: "'Noto Sans JP',sans-serif", fontSize: 17, color: "rgba(255,255,255,0.85)", margin: "0 0 6px", fontWeight: 500 }}>{T("ゲーム体験")}</h3>
+                  <p style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", margin: 0, lineHeight: 1.6 }}>{T("ゲームを体験してください")}</p>
+                  <p style={{ fontSize: 12, color: P.acc, margin: "6px 0 0", fontWeight: 500 }}>{T("推定時間：20〜30分　|　全3ステージ")}</p>{LANG === "en" && GAME_NOTE_EN && <p style={{ fontSize: 12, color: "rgba(255,255,255,0.6)", margin: "6px 0 0", lineHeight: 1.6 }}>{GAME_NOTE_EN}</p>}</div>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={P.acc} strokeWidth="2.5"><path d="M9 18l6-6-6-6" /></svg>
+              </div>
+            </a>
+
+            <button onClick={() => { setView("post"); setAns({}); setOth({}); setDone(false); setErrs(false); setGs(null); window.scrollTo(0, 0) }}
+              style={{ background: "linear-gradient(135deg,rgba(91,138,240,0.15),rgba(43,94,167,0.2))", border: "1.5px solid rgba(91,138,240,0.35)", borderRadius: 12, padding: "24px 28px", textAlign: "left", cursor: "pointer", transition: "all 0.2s", boxShadow: "0 2px 8px rgba(0,0,0,0.2)" }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = "#5B8AF0"; e.currentTarget.style.boxShadow = "0 4px 20px rgba(91,138,240,0.3)"; e.currentTarget.style.background = "linear-gradient(135deg,rgba(91,138,240,0.25),rgba(43,94,167,0.3))" }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(91,138,240,0.35)"; e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.2)"; e.currentTarget.style.background = "linear-gradient(135deg,rgba(91,138,240,0.15),rgba(43,94,167,0.2))" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div><h3 style={{ fontFamily: "'Noto Sans JP',sans-serif", fontSize: 17, color: "rgba(255,255,255,0.85)", margin: "0 0 6px", fontWeight: 500 }}>{T("ゲーム体験後のご質問")}</h3>
+                  <p style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", margin: 0, lineHeight: 1.6 }}>{(LANG === "en" ? "Your reading experience, coping, meaning, and emotions, plus a short written reflection" : T("人生満足度、コーピングに関する質問"))}</p>
+                  <p style={{ fontSize: 12, color: P.acc, margin: "6px 0 0", fontWeight: 500 }}>{LANG === "en" ? "Estimated time: about 25–30 min in total (survey and written reflection)" : T("推定時間：3〜5分")}</p></div>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#5B8AF0" strokeWidth="2.5"><path d="M9 18l6-6-6-6" /></svg>
+              </div>
+            </button>
+          </div>
+          <div style={{ borderTop: "1px solid rgba(255,255,255,0.1)", paddingTop: 24, textAlign: "center" }}>
+            <p style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", lineHeight: 1.8, marginBottom: 20 }}>{T("この回答をもちまして，本研究の協力に同意いただいたものとさせていただきます。")}<br />{T("すべての回答は匿名です。")}</p>
+            <div style={{ fontSize: 12, color: "rgba(255,255,255,0.6)", lineHeight: 1.9, textAlign: "center" }}>
+{LANG === "en" ? <>
+              <p style={{ margin: 0 }}>Questions about this study: Principal Investigator Noriko Toyokawa, Ph.D., Southern Oregon University<br /><a href="mailto:toyokawan@sou.edu" style={{ color: "#7BA4F7" }}>toyokawan@sou.edu</a> · 541-522-6858<br />Co-Investigator Toru Fujimoto, Professor, The University of Tokyo.<br />Co-Investigator Hironori Sakai, Ph.D., The University of Tokyo.<br />Questions about your rights as a participant: Southern Oregon University Institutional Review Board · 541-552-8290</p>
+            </> : <>
+              <p style={{ margin: "0 0 4px", fontWeight: 500, color: "rgba(255,255,255,0.85)" }}>{T("調査責任者：東京大学情報学環　藤本　徹")}</p>
+              <p style={{ margin: "0 0 4px", fontWeight: 500, color: "rgba(255,255,255,0.85)" }}>{T("調査実施者：東京大学情報学環　坂井裕紀")}</p>
+              <p style={{ margin: "0 0 16px", fontWeight: 500, color: "rgba(255,255,255,0.85)" }}>{T("調査実施者：南オレゴン大学　豊川典子")}</p>
+              <p style={{ margin: 0 }}>{T("ご不明な点がありましたら，下記までご連絡ください。")}<br />{T("連絡先（坂井 裕紀：さかい ひろのり）：")}<a href="mailto:hironori.sakai@iii.u-tokyo.ac.jp" style={{ color: "#7BA4F7" }}>hironori.sakai@iii.u-tokyo.ac.jp</a><br />{T("連絡先（豊川典子：とよかわ のりこ）：")}<a href="mailto:toyokawan@sou.edu" style={{ color: "#7BA4F7" }}>toyokawan@sou.edu</a></p>
+            </>}
+            </div>
+          </div>
+        </div>
+      </div>;
+
+      // DONE
+      if (done) return <div style={{ minHeight: "100vh", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+        <div style={{ textAlign: "center", padding: "60px 24px", maxWidth: 600 }}>
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}><LangSwitch lang={lang} onChange={switchLang} /></div>
+          <div style={{ fontSize: 48, marginBottom: 16 }}>✓</div>
+          <h2 style={{ fontFamily: "'Noto Serif JP',serif", fontSize: 22, color: P.pri, marginBottom: 12 }}>{view === "post" ? T("ご体験ありがとうございました") : T("ご回答ありがとうございました")}</h2>
+          {view === "pre" ? <div><p style={{ fontSize: 15, color: P.mut, lineHeight: 1.8, maxWidth: 400, margin: "0 auto 20px" }}>{T("ゲーム体験前のご質問への回答が完了しました。データは正常に記録されました。")}</p><div style={{ background: "rgba(91,138,240,0.12)", border: `1.5px solid ${P.pri}`, borderRadius: 10, padding: "16px 20px", margin: "0 auto 24px", maxWidth: 400 }}><p style={{ fontSize: 12, color: P.mut, margin: "0 0 6px" }}>{T("あなたの匿名コード")}</p><p style={{ fontSize: 26, fontWeight: 700, letterSpacing: 2, fontFamily: "monospace", margin: "0 0 8px", wordBreak: "break-all" }}>{ans.q1}</p><p style={{ fontSize: 12, color: P.mut, margin: 0, lineHeight: 1.7 }}>{T("このコードはゲームの体験や事後アンケートでも使用します。")}<br />{T("記録しておいてください。")}</p></div></div> : <div style={{ textAlign: "left", margin: "0 auto 28px" }}>
+            {LANG !== "en" && <p style={{ fontSize: 15, color: P.mut, lineHeight: 1.8, marginBottom: 20 }}>{T("「あなたは何を選ぶ？-ゲームで体験する喪失と生の価値」の体験お疲れ様でした")}</p>}
+            {LANG !== "en" && <p style={{ fontSize: 14, color: P.mut, lineHeight: 1.9, marginBottom: 20 }}>{T("この体験が、あなたの健康と幸福の支えとなり")}<br />{T("より充実した人生の一助となることを願っています")}</p>}
+          </div>}
+          <div>{<button onClick={reset} style={{ padding: "12px 32px", background: "transparent", color: P.pri, border: `2px solid ${P.pri}`, borderRadius: 8, fontSize: 14, cursor: "pointer", fontWeight: 600, transition: "all 0.2s" }}
+            onMouseEnter={e => { e.target.style.background = P.pri; e.target.style.color = "#fff" }} onMouseLeave={e => { e.target.style.background = "transparent"; e.target.style.color = P.pri }}>{T("トップに戻る")}</button>}</div>
+        </div>
+      </div>;
+
+      // FORM
+      const isPre = view === "pre"; const total = tot(); const answered = cnt(); const missing = errs ? miss() : [];
+      const missingCount = missing.length;
+      const showErrBanner = errs === true && missingCount > 0;
+      return <div style={{ minHeight: "100vh", background: "transparent" }}>
+        <div style={{ maxWidth: 720, margin: "0 auto", padding: "0 20px 60px" }}>
+          <Bar cur={answered} tot={total} />
+          <div style={{ padding: "28px 0 20px", borderBottom: `1px solid ${P.bdr}`, marginBottom: 28, position: "relative" }}>
+            <div style={{ position: "absolute", top: 24, right: 0 }}><LangSwitch lang={lang} onChange={switchLang} /></div>
+            <button onClick={() => { if (window.confirm(T("回答内容は保存されません。トップに戻りますか？"))) reset() }} style={{ background: "none", border: "none", color: P.mut, cursor: "pointer", fontSize: 13, padding: 0, marginBottom: 12, display: "flex", alignItems: "center", gap: 4 }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 18l-6-6 6-6" /></svg>{T("トップに戻る")}
+            </button>
+            <h1 style={{ fontFamily: "'Noto Sans JP',sans-serif", fontSize: 22, color: "rgba(255,255,255,0.85)", margin: 0, fontWeight: 500 }}>{isPre ? T("ゲーム体験前のご質問") : T("ゲーム体験後のご質問")}</h1>
+          </div>
+
+          {showErrBanner && <div style={{ background: "rgba(240,112,112,0.12)", border: "1px solid rgba(240,112,112,0.3)", borderRadius: 10, padding: "14px 20px", marginBottom: 24 }}>
+            <p style={{ color: P.err, fontSize: 14, margin: 0, fontWeight: 500 }}>{LANG === "en" ? `${T("未回答の必須項目が")} ${missingCount}. ${T("件あります。ご確認ください。")}` : `未回答の必須項目が ${missingCount} 件あります。ご確認ください。`}</p>
+          </div>}
+
+          <div style={{ background: P.card, border: `1px solid ${P.bdr}`, borderRadius: 10, padding: "20px 24px", marginBottom: 32 }}>
+            <h3 style={{ fontFamily: "'Noto Sans JP',sans-serif", fontSize: 13, color: P.acc, margin: "0 0 16px", fontWeight: 600 }}>{LANG === "en" ? (isPre ? "PART I: DEMOGRAPHIC & BACKGROUND INFORMATION" : "Study ID") : "Q1"}</h3>
+            {(isPre ? PRE_X().demo : POST.code).map(q => {
+              const fieldErr = errs === true && missing.includes(q.id);
+              return <div key={q.id} id={`f-${q.id}`}>
+                <DQ q={q} value={ans[q.id]} onChange={v => sa(q.id, v)} ov={oth[q.id]} onOv={v => so(q.id, v)} dupCode={dupCode} />
+                {fieldErr && <p style={{ color: P.err, fontSize: 12, margin: "-16px 0 16px", fontWeight: 500 }}>{q.type === "code" ? T("有効な匿名コードを入力してください") : T("この項目は必須です")}</p>}
+              </div>;
+            })}
+          </div>
+
+          {isPre ? (LANG === "en" ? <>
+            <div id="f-q10"><p style={{ fontFamily: "'Noto Serif JP',serif", fontSize: 15, color: P.acc, margin: "0 0 12px", fontWeight: 600, letterSpacing: 0.5 }}>PART II: PRE-TEST SURVEY</p></div>
+            <SS key="en-swls" section={PRE_EN.swls} storageKey="survey_order_pre_swls" answers={ans} set={sa} />
+            <div id="f-q18"><SS key="en-cses" section={PRE_EN.cses} storageKey="survey_order_pre_cses" answers={ans} set={sa} /></div>
+            <SS key="en-cop" section={PRE_EN.cop} storageKey="survey_order_pre_cop_en" answers={ans} set={sa} />
+            <SS key="en-3dm" section={PRE_EN.meaning} storageKey="survey_order_pre_3dm_en" answers={ans} set={sa} />
+            <SS key="en-play" section={PRE_EN.play} storageKey="survey_order_pre_play_en" answers={ans} set={sa} />
+          </> : <>
+            <div id="f-q10"><SS section={PRE.swls} storageKey="survey_order_pre_swls" answers={ans} set={sa} /></div>
+            <div id="f-q18"><SS section={PRE.cses} storageKey="survey_order_pre_cses" answers={ans} set={sa} /></div>
+          </>) : (LANG === "en" ? <>
+            <div style={{ marginBottom: 32 }}>
+              <div style={{ background: "linear-gradient(90deg,#1E3A6E,#2B5EA7)", color: "#fff", padding: "16px 24px", borderRadius: "10px 10px 0 0", fontFamily: "'Noto Serif JP',serif" }}><h2 style={{ margin: 0, fontSize: 17, fontWeight: 600 }}>PART I: GAME EXPERIENCE &amp; MANIPULATION CHECK</h2></div>
+              <div style={{ background: P.card, border: `1px solid ${P.bdr}`, borderTop: "none", borderRadius: "0 0 10px 10px", padding: "8px 24px 16px" }}><div id="f-q60"><DQ q={POST_EN.completed} value={ans.q60} onChange={v => sa("q60", v)} ov={oth.q60} onOv={v => so("q60", v)} /></div></div>
+            </div>
+            <div id="f-q61"><SS key="pe-engage" section={POST_EN.engage} storageKey="survey_order_post_engage_en" answers={ans} set={sa} /></div>
+            <p style={{ fontFamily: "'Noto Serif JP',serif", fontSize: 15, color: P.acc, margin: "0 0 12px", fontWeight: 600, letterSpacing: 0.5 }}>PART II: POST-TEST SURVEY</p>
+            <div id="f-q64"><SS key="pe-coping" section={POST_EN.coping} storageKey="survey_order_post_coping_en" answers={ans} set={sa} /></div>
+            <div id="f-q10"><SS key="pe-cses" section={POST_EN.cses} storageKey="survey_order_post_cses" answers={ans} set={sa} /></div>
+            <div id="f-q7"><SS key="pe-mean" section={POST_EN.mean} storageKey="survey_order_post_mean_en" answers={ans} set={sa} /></div>
+            <div id="f-q2"><SS key="pe-swls" section={POST_EN.swls} storageKey="survey_order_post_swls" answers={ans} set={sa} /></div>
+            <div id="f-q41"><SS key="pe-emot" section={POST_EN.emot} storageKey="survey_order_post_emot_en" answers={ans} set={sa} /></div>
+            <div id="f-q49"><SS key="pe-refl" section={POST_EN.refl} storageKey="survey_order_post_refl" answers={ans} set={sa} /></div>
+            <div style={{ marginBottom: 32 }}>
+              <div style={{ background: "linear-gradient(90deg,#1E3A6E,#2B5EA7)", color: "#fff", padding: "16px 24px", borderRadius: "10px 10px 0 0", fontFamily: "'Noto Serif JP',serif" }}><h2 style={{ margin: 0, fontSize: 17, fontWeight: 600 }}>PART III: QUALITATIVE WRITTEN REFLECTION</h2></div>
+              <div style={{ background: P.card, border: `1px solid ${P.bdr}`, borderTop: "none", borderRadius: "0 0 10px 10px", padding: "8px 24px 16px" }}><p style={{ fontSize: 14, color: "#fff", lineHeight: 1.8, margin: "12px 0 8px" }}>Please write a brief reflection responding to the prompt below. There are no right or wrong answers; we are interested in your personal thoughts and insights.</p><div id="f-q70"><DQ q={POST_EN.reflect} value={ans.q70} onChange={v => sa("q70", v)} ov={oth.q70} onOv={v => so("q70", v)} /></div><div id="f-q71"><DQ q={POST_EN.repeat} value={ans.q71} onChange={v => sa("q71", v)} ov={oth.q71} onOv={v => so("q71", v)} /></div>{ans.q71 && ans.q71.indexOf("Yes") === 0 && <div id="f-q72"><DQ q={POST_EN.longit} value={ans.q72} onChange={v => sa("q72", v)} ov={oth.q72} onOv={v => so("q72", v)} /></div>}{ans.q71 && ans.q71.indexOf("Yes") === 0 && POST.gameSelect.filter(q => q.id !== "q58").map(q => <div key={q.id} id={`f-${q.id}`}><DQ q={{ ...q, dn: "" }} value={ans[q.id]} onChange={v => sa(q.id, v)} ov={oth[q.id]} onOv={v => so(q.id, v)} /></div>)}</div>
+            </div>
+          </> : <>
+            <div id="f-q2"><SS section={POST.swls} storageKey="survey_order_post_swls" answers={ans} set={sa} /></div>
+            <div id="f-q10"><SS section={POST.cses} storageKey="survey_order_post_cses" answers={ans} set={sa} /></div>
+            <div id="f-q41"><SS section={POST.emot} storageKey="survey_order_post_emot" answers={ans} set={sa} /></div>
+            <div id="f-q49"><SS section={POST.refl} storageKey="survey_order_post_refl" answers={ans} set={sa} /></div>
+            <div style={{ marginBottom: 32 }}>
+              <div style={{ background: "linear-gradient(90deg,#1E3A6E,#2B5EA7)", color: "#fff", padding: "16px 24px", borderRadius: "10px 10px 0 0", fontFamily: "'Noto Serif JP',serif" }}><h2 style={{ margin: 0, fontSize: 17, fontWeight: 600 }}>§7.</h2></div>
+              <div style={{ background: P.card, border: `1px solid ${P.bdr}`, borderTop: "none", borderRadius: "0 0 10px 10px", padding: "8px 24px 16px" }}>
+                {POST.gameSelect.map((q, idx) => <div key={q.id} id={`f-${q.id}`}><DQ q={q} value={ans[q.id]} onChange={v => sa(q.id, v)} ov={oth[q.id]} onOv={v => so(q.id, v)} displayNum={idx + 1} /></div>)}
+              </div>
+            </div>
+          </>)}
+
+          <div style={{ textAlign: "center", padding: "20px 0 40px" }}>
+            <p style={{ fontSize: 13, color: P.mut, marginBottom: 16 }}>{T("すべての回答を入力したら、「完了」ボタンを押してください。")}</p>
+            <button onClick={submit} disabled={saving} style={{ padding: "14px 48px", background: P.pri, color: "#fff", border: "none", borderRadius: 10, fontSize: 16, fontWeight: 600, cursor: saving ? "wait" : "pointer", transition: "all 0.2s", opacity: saving ? 0.7 : 1, boxShadow: "0 2px 12px rgba(91,138,240,0.3)" }}
+              onMouseEnter={e => { if (!saving) e.target.style.background = P.priL }} onMouseLeave={e => { if (!saving) e.target.style.background = P.pri }}>{saving ? T("送信中...") : T("完了")}</button>
+          </div>
+        </div>
+      </div>;
+    }
+
+    ReactDOM.render(<App />, document.getElementById("root"));
+  </script>
+</body>
+
+</html>
